@@ -58,6 +58,10 @@ handleEvent s (VtyEvent (EvKey (KChar c) _modifiers)) = case c of
     ']' -> continue case currAction s of
         Dir a d -> s {currAction = Dir a (next d)}
         _ -> s
+    '{' -> continue $ s {currResource = prev . currResource $ s}
+    '[' -> continue case currAction s of
+        Dir a d -> s {currAction = Dir a (prev d)}
+        _ -> s
     'q' -> halt s
     _ -> continue s
 handleEvent s (VtyEvent (EvKey KEnter _modifiers)) = continue $
