@@ -25,5 +25,9 @@
     *   [ ] Make action queue editable\
         Will probably require switching Actor's queue attribute over to a Seq
 
-    *   [ ] Use Forms\
-        Will probably require adding lense stuff
+*   [ ] Add Forms to UI\
+    Will probably require adding lens stuff
+
+*   [ ] Add multiplayer between terminals on same machine
+
+*   [ ] Add multiplayer over network
