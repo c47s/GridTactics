@@ -60,10 +60,11 @@ instance World SeqWorld where
     modify \w -> w {actors' = IM.insert aID a $ actors' w}
     return $ UID aID
 
-  updateSquare f c@(x,y) w = (\w' -> w' {empties' = (
+  updateSquare f c w = (\w' -> w' {empties' = (
     if passable $ getSquare c w'
       then Set.insert
       else Set.delete
-    ) c $ empties' w'
+    ) (wrap (width w) c) $ empties' w'
     } )
-    $ w {worldMap = Seq.adjust (Seq.adjust f x) y $ worldMap w}
+    $ let (x, y) = wrap (width w) c
+      in w {worldMap = Seq.adjust (Seq.adjust f x) y $ worldMap w}
