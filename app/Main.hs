@@ -2,6 +2,7 @@ module Main (main) where
 
 import Brick
 import Brick.Main
+import Brick.Widgets.Border
 import Brick.Widgets.Center
 import Brick.Widgets.Table
 import Data.Composition
@@ -73,18 +74,25 @@ handleEvent s _otherEvent = continue s
 modifyWorld :: (w -> w) -> AppState w -> AppState w
 modifyWorld f s = s {world = f . world $ s}
 
+defaultElem :: a -> [a] -> [a]
+defaultElem x [] = [x]
+defaultElem _ xs = xs
+
 draw :: (World w) => AppState w -> [Widget Name]
 draw s = let w = world s
              aID = currActor s
              a = lookupActor aID w
              c = findActor aID w
              worldTable = renderTable . grid2Table w $ view (vision a) c w
-         in  [ hCenter worldTable
-             <=> hCenter (str ("Your Inventory: " ++ show (contents =<< getSquare c w)))
-             <=> hCenter (str ("Selected Action: " ++ show (currAction s)))
-             <=> case currAction s of
-                 Dir (Throw _) _ -> hCenter $ str ("Selected Resource: " ++ show (currResource s))
-                 _ -> emptyWidget
+         in  [ (vBox . fmap hCenter $ [worldTable
+                , str ("Your Inventory: " ++ show (contents =<< getSquare c w))
+                , str ("Selected Action: " ++ show (currAction s))
+                , case currAction s of
+                    Dir (Throw _) _ -> hCenter $ str ("Selected Resource: " ++ show (currResource s))
+                    _ -> emptyWidget
+                ]) <+> borderWithLabel (txt "Your Action Queue:")
+                    (hLimit 50 . hCenter $ vBox (defaultElem (txt "No Actions Planned (Yet!)")
+                    . fmap (str . show) . reverse . toList . queue . lookupActor aID $ w))
              ]
 
 grid2Table :: (World w) => w -> [[Square]] -> Table Name
