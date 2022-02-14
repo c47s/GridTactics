@@ -221,10 +221,10 @@ class World w where
   -- The predicate takes the tuple (this Square, the next Square). This allows stopping before OR upon the desired Square.
   project :: Coords -> Direction -> Int -> ((Square, Square) -> Bool) -> w -> Coords
   project c d r p w
-    | r == 0 || p (getSquare c w, getSquare next w) = c
-    | otherwise = project next d (r - 1) p w
+    | r == 0 || p (getSquare c w, getSquare nextSq w) = c
+    | otherwise = project nextSq d (r - 1) p w
     where
-      next = step d c
+      nextSq = step d c
   
   -- Start the search 1 square out. (To avoid hitting yourself!)
   project1 :: Coords -> Direction -> Int -> ((Square, Square) -> Bool) -> w -> Coords
@@ -327,10 +327,10 @@ class World w where
     return . updateActor (\a -> a {queue = queue'}) aID . -- Always update the queue.
       if'
         (or . fmap ((<= 0) . health) . getSquare (findIn w) $ w)
-        (trace ("Action " ++ show actn ++ " Failed Because Sq Empty or Health <= 0") w) . -- Keep the world unchanged if health WAS ORIGINALLY <= 0, or Actor's square was empty.
-      fromMaybe (trace ("Paying for Action " ++ show actn ++ " Failed") w) . -- Keep the World unchanged if the Actor can't afford the Action.
+        w . -- Keep the world unchanged if health WAS ORIGINALLY <= 0, or Actor's square was empty.
+      fromMaybe w . -- Keep the World unchanged if the Actor can't afford the Action.
         (\w' -> spendFor actn (findIn w') w') . -- Even if the Action fails, try to pay for it.
-      fromMaybe (trace ("Action " ++ show actn ++ " Failed") w) . -- Keep the World unchanged if the Action fails.
+      fromMaybe w . -- Keep the World unchanged if the Action fails.
         doAct actn (findIn w) $ w
   
   runTurn :: w -> w 

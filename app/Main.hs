@@ -1,21 +1,19 @@
 module Main (main) where
 
-import           Brick
-import           Brick.Main
-import           Brick.Widgets.Center
-import           Brick.Widgets.Core
-import           Brick.Widgets.Table
-import           Data.Composition
-import qualified Deque.Lazy as D
-import           Graphics.Vty
-import           GridTactics
-import           Relude
-import           Relude.Extra.Enum (next)
-import           Relude.Unsafe (fromJust)
-import           System.Random hiding (next)
+import Brick
+import Brick.Main
+import Brick.Widgets.Center
+import Brick.Widgets.Table
+import Data.Composition
+import Graphics.Vty
+import GridTactics
+import Relude
+import Relude.Extra.Enum (prev, next)
+import Relude.Unsafe (fromJust)
+import System.Random hiding (next)
 type GTEvent = ()
 
-newtype Name = Name {unName :: Text}
+newtype Name = Name {_unName :: Text}
     deriving stock (Eq, Ord)
     deriving newtype IsString
 
