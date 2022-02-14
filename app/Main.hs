@@ -88,7 +88,7 @@ draw s = let w = world s
              ]
 
 grid2Table :: (World w) => w -> [[Square]] -> Table Name
-grid2Table w = table . fmap (fmap $ renderSquare w)
+grid2Table w = table . reverse . fmap (fmap $ renderSquare w)
 
 renderSquare :: (World w) => w -> Square -> Widget Name
 renderSquare = vLimit 2 . hLimit 5 . center . vBox . fmap txt .: sq2Texts
