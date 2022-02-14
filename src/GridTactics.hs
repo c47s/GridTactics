@@ -7,9 +7,8 @@ See README for more info
 -}
 
 module GridTactics
-       ( someFunc
+       ( module GridTactics
        ) where
 
-
-someFunc :: IO ()
-someFunc = putStrLn ("someFunc" :: String)
+import Mechanics as GridTactics
+import SeqWorld as GridTactics
