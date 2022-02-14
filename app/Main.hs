@@ -75,8 +75,10 @@ draw :: (World w) => AppState w -> [Widget Name]
 draw s = let w = world s
              aID = currActor s
              a = lookupActor aID w
-             worldTable = renderTable . grid2Table w $ view (vision a) (findActor aID w) w
+             c = findActor aID w
+             worldTable = renderTable . grid2Table w $ view (vision a) c w
          in  [ hCenter worldTable
+             <=> hCenter (str ("Your Inventory: " ++ show (contents =<< getSquare c w)))
              <=> hCenter (str ("Selected Action: " ++ show (currAction s)))
              <=> case currAction s of
                  Dir (Throw _) _ -> hCenter $ str ("Selected Resource: " ++ show (currResource s))
@@ -113,6 +115,11 @@ main = do
     let e = Entity Nothing 3 (Just $ Loot {hearts = 10, actions = 20})
     let (aID, w') = fromJust $ usingStateT w do
             c <- scatter e
-            register $ Actor {name = "Test", coords = c, range = 3, vision = 5, queue = empty}
-    _ <- defaultMain gtApp $ AppState {world = w', currActor = aID, currAction = Undir Die, currResource = Actions}
+            register $ Actor {name = "Test", coords = c, range = 3, vision = 6, queue = empty}
+    _ <- defaultMain gtApp $ AppState
+        { world = w'
+        , currActor = aID
+        , currAction = Undir Die
+        , currResource = Actions
+        }
     pass

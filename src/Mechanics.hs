@@ -57,12 +57,9 @@ passable (Just (Entity Nothing hp _)) = hp <= 0 -- Entities that have positive h
 hittable :: Square -> Bool
 hittable = maybe False $ (> 0) . health
 
--- A square is grabbable only if it is passable and contains loot
+-- A square is grabbable only if it contains loot.
 grabbable :: Square -> Bool
-grabbable s = passable s && isJust do
-  e <- s
-  cont <- contents e
-  guard $ cont /= mempty
+grabbable = maybe False $ (/= mempty) . contents
 
 instance Semigroup Entity where
   e <> e' = Entity
@@ -169,7 +166,7 @@ cost (Undir HP2Hearts)  = 0
 
 {- {- {- WORLD -} -} -}
 
-
+generalizeState :: (Monad m) => StateT s Identity a -> StateT s m a
 generalizeState = StateT . fmap (return . runIdentity) . runStateT
 
 -- A bunch of squares that may contain at most one Entity each.
@@ -298,21 +295,22 @@ class World w where
     cont <- contents me
     act <- actor w me
     case a of
-      Dir a' d -> let target = project c d (range act) (hittable . fst) w
-        in case a' of
-          Move -> do
-            let destination = step d c
-            guard . passable . getSquare destination $ w
-            return . move c destination $ w
-          Shoot -> return . hit target $ w
-          Throw l -> do
-            cont' <- cont `without` l
-            return .
-              putLoot l target .
-              updateSquare (fmap \e -> e {contents = Just cont' }) c $ w
-          Grab -> do
-            let grabbee = project c d (range act) (grabbable . fst) w
-            grab grabbee c w
+      Dir a' d -> case a' of
+        Move -> do
+          let destination = step d c
+          guard . passable . getSquare destination $ w
+          return . move c destination $ w
+        Shoot -> let target = project1 c d (range act) (hittable . fst) w
+          in return . hit target $ w
+        Throw l -> do
+          let throwee = project1 c d (range act) (hittable . snd) w
+          cont' <- cont `without` l
+          return .
+            putLoot l throwee .
+            updateSquare (fmap \e -> e {contents = Just cont' }) c $ w
+        Grab -> do
+          let grabbee = project1 c d (range act) (grabbable . fst) w
+          grab grabbee c w
       Undir Die -> return . putLoot (Loot {hearts = health me, actions = 0}) c .
         updateSquare (fmap \e -> e {health = 0}) c $ w
       Undir Hearts2HP -> do
@@ -324,16 +322,16 @@ class World w where
   -- If the queue is empty, keep the world unchanged.
   popAct :: UID -> w -> w
   popAct aID w = fromMaybe w do
-    let c = findActor aID w
+    let findIn = findActor aID
     (actn, queue') <- D.unsnoc . queue $ lookupActor aID w
     return . updateActor (\a -> a {queue = queue'}) aID . -- Always update the queue.
       if'
-        (or . fmap ((<= 0) . health) . getSquare c $ w)
-        w . -- Keep the world unchanged if health WAS ORIGINALLY <= 0, or Actor's square was empty.
-      fromMaybe w . -- Keep the World unchanged if the Actor can't afford the Action.
-        spendFor actn c . -- Even if the Action fails, try to pay for it.
-      fromMaybe w . -- Keep the World unchanged if the Action fails.
-        doAct actn c $ w
+        (or . fmap ((<= 0) . health) . getSquare (findIn w) $ w)
+        (trace ("Action " ++ show actn ++ " Failed Because Sq Empty or Health <= 0") w) . -- Keep the world unchanged if health WAS ORIGINALLY <= 0, or Actor's square was empty.
+      fromMaybe (trace ("Paying for Action " ++ show actn ++ " Failed") w) . -- Keep the World unchanged if the Actor can't afford the Action.
+        (\w' -> spendFor actn (findIn w') w') . -- Even if the Action fails, try to pay for it.
+      fromMaybe (trace ("Action " ++ show actn ++ " Failed") w) . -- Keep the World unchanged if the Action fails.
+        doAct actn (findIn w) $ w
   
   runTurn :: w -> w 
   runTurn = execState do
