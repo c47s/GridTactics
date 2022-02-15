@@ -11,7 +11,7 @@ import           GridTactics
 import           Relude
 import           Relude.Extra.Enum (prev, next)
 import           Relude.Unsafe (fromJust)
-import qualified Relude.Unsafe as Unsafe (head)
+import qualified Relude.Unsafe as Unsafe (head, tail)
 import           System.Random hiding (next)
 type GTEvent = ()
 
@@ -28,7 +28,7 @@ singloot Hearts = Loot {hearts = 1, actions = 0}
 
 data AppState w = AppState
     { world :: w
-    , currActor :: UID
+    , actorStack :: [UID]
     , currAction :: Action
     , currResource :: Resource
     }
@@ -41,6 +41,9 @@ gtApp = App
     , appStartEvent = (activateMouseMode $>)
     , appAttrMap = const $ attrMap defAttr []
     }
+
+currActor :: AppState w -> UID
+currActor = Unsafe.head . actorStack
 
 handleEvent :: (World w) => AppState w -> BrickEvent Name e -> EventM Name (Next (AppState w))
 handleEvent s (VtyEvent (EvKey (KChar c) _modifiers)) = case c of
@@ -64,6 +67,7 @@ handleEvent s (VtyEvent (EvKey (KChar c) _modifiers)) = case c of
     '[' -> continue case currAction s of
         Dir a d -> s {currAction = Dir a (prev d)}
         _ -> s
+    '.' -> continue $ s {actorStack = Unsafe.tail $ actorStack s}
     'q' -> halt s
     _ -> continue s
 handleEvent s (VtyEvent (EvKey KEnter _modifiers)) = continue $
@@ -85,7 +89,9 @@ draw s = let w = world s
              a = lookupActor aID w
              c = findActor aID w
              worldTable = renderTable . grid2Table w $ view (vision a) c w
-         in  [ (vBox . fmap hCenter $ [worldTable
+         in  [ (vBox . fmap hCenter $
+                [ txt ("You are " <> name a)
+                , worldTable
                 , str ("Your Inventory: " ++ show (contents =<< getSquare c w))
                 , str ("Selected Action: " ++ show (currAction s))
                 , case currAction s of
@@ -93,7 +99,7 @@ draw s = let w = world s
                     _ -> emptyWidget
                 ]) <+> borderWithLabel (txt "Your Action Queue:")
                     (hLimit 50 . hCenter $ vBox (defaultElem (txt "No Actions Planned (Yet!)")
-                    . fmap (str . show) . reverse . toList . queue . lookupActor aID $ w))
+                    . fmap (str . show) . reverse . toList . queue $ a))
              ]
 
 grid2Table :: (World w) => w -> [[Square]] -> Table Name
@@ -123,13 +129,13 @@ activateMouseMode = do
 main :: IO ()
 main = do
     let w = mkWorld (mkStdGen 0) 30 :: SeqWorld
-    let w' = fromJust . scatterActors ["Guy", "Jean", "Marie", "Anne", "Luc"]
+    let w' = fromJust . scatterActors ["Guy", "Jean", "Marie", "Anne"]
              (Entity Nothing 3 (Just $ Loot {hearts = 2, actions = 1}))
              (Actor {name = "", coords = (0,0), range = 2, vision = 3, queue = empty})
              $ w
     _ <- defaultMain gtApp $ AppState
         { world = w'
-        , currActor = Unsafe.head . actors $ w'
+        , actorStack = cycle . actors $ w'
         , currAction = Undir Die
         , currResource = Actions
         }

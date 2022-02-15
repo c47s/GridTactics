@@ -348,3 +348,4 @@ class World w where
     let runRound = foldr (.) id $ popAct <$> shuffle' everyone (length everyone) gen :: w -> w
     let queuesEmpty w = all (D.null . queue . flip lookupActor w) . actors $ w
     modify $ until queuesEmpty runRound
+
