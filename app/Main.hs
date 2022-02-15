@@ -1,17 +1,18 @@
 module Main (main) where
 
-import Brick
-import Brick.Main
-import Brick.Widgets.Border
-import Brick.Widgets.Center
-import Brick.Widgets.Table
-import Data.Composition
-import Graphics.Vty
-import GridTactics
-import Relude
-import Relude.Extra.Enum (prev, next)
-import Relude.Unsafe (fromJust)
-import System.Random hiding (next)
+import           Brick
+import           Brick.Main
+import           Brick.Widgets.Border
+import           Brick.Widgets.Center
+import           Brick.Widgets.Table
+import           Data.Composition
+import           Graphics.Vty
+import           GridTactics
+import           Relude
+import           Relude.Extra.Enum (prev, next)
+import           Relude.Unsafe (fromJust)
+import qualified Relude.Unsafe as Unsafe (head)
+import           System.Random hiding (next)
 type GTEvent = ()
 
 newtype Name = Name {_unName :: Text}
@@ -121,14 +122,14 @@ activateMouseMode = do
 
 main :: IO ()
 main = do
-    let w = mkWorld (mkStdGen 0) 10 :: SeqWorld
-    let e = Entity Nothing 3 (Just $ Loot {hearts = 10, actions = 20})
-    let (aID, w') = fromJust $ usingStateT w do
-            c <- scatter e
-            register $ Actor {name = "Test", coords = c, range = 3, vision = 6, queue = empty}
+    let w = mkWorld (mkStdGen 0) 30 :: SeqWorld
+    let w' = fromJust . scatterActors ["Guy", "Jean", "Marie", "Anne", "Luc"]
+             (Entity Nothing 3 (Just $ Loot {hearts = 2, actions = 1}))
+             (Actor {name = "", coords = (0,0), range = 2, vision = 3, queue = empty})
+             $ w
     _ <- defaultMain gtApp $ AppState
         { world = w'
-        , currActor = aID
+        , currActor = Unsafe.head . actors $ w'
         , currAction = Undir Die
         , currResource = Actions
         }

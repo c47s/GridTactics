@@ -217,6 +217,14 @@ class World w where
     modify $ putSquare (Just e) c
     return c
 
+  scatterActor :: Entity -> Actor -> StateT w Maybe UID
+  scatterActor e a = do
+      c <- scatter e
+      register $ a {coords = c}
+  
+  scatterActors :: [Text] -> Entity -> Actor -> w -> Maybe w
+  scatterActors names e a w = foldl' (>>=) (Just w) [execStateT $ scatterActor e (a {name = thisName}) | thisName <- names]
+
   -- Search in a line from the Coords in the given direction until we find what we're looking for or we reach the given max range.
   -- The predicate takes the tuple (this Square, the next Square). This allows stopping before OR upon the desired Square.
   project :: Coords -> Direction -> Int -> ((Square, Square) -> Bool) -> w -> Coords
