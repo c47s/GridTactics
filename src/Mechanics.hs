@@ -349,3 +349,5 @@ class World w where
     let queuesEmpty w = all (D.null . queue . flip lookupActor w) . actors $ w
     modify $ until queuesEmpty runRound
 
+  giveAllLoot :: Loot -> w -> w
+  giveAllLoot l w = foldl' (&) w . fmap (putLoot l . (`findActor` w)) . actors
