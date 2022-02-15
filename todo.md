@@ -1,6 +1,6 @@
 # Todo
 
-*   [ ] Add actor-switching to facilitate multiplayer
+*   [x] Add actor-switching to facilitate multiplayer
 
 *   [ ] Refactor Loot as a Map from Resources to Ints
 

@@ -340,14 +340,15 @@ class World w where
         (\w' -> spendFor actn (findIn w') w') . -- Even if the Action fails, try to pay for it.
       fromMaybe w . -- Keep the World unchanged if the Action fails.
         doAct actn (findIn w) $ w
+
+  giveAllLoot :: Loot -> w -> w
+  giveAllLoot l w = foldl' (&) w . fmap (putLoot l . (`findActor` w)) . actors $ w
   
   runTurn :: w -> w 
   runTurn = execState do
     gen <- splitGen
     everyone <- gets actors
-    let runRound = foldr (.) id $ popAct <$> shuffle' everyone (length everyone) gen :: w -> w
+    let runRound = foldr (.) id $ popAct <$> shuffle' everyone (length everyone) gen -- :: w -> w
     let queuesEmpty w = all (D.null . queue . flip lookupActor w) . actors $ w
     modify $ until queuesEmpty runRound
-
-  giveAllLoot :: Loot -> w -> w
-  giveAllLoot l w = foldl' (&) w . fmap (putLoot l . (`findActor` w)) . actors
+    modify . giveAllLoot $ Loot {hearts = 0, actions = 1}
