@@ -131,7 +131,7 @@ draw s = let
         (vBox
             [ clickable (DirActBtn Move) . txt $ "m: " <> dispDAct Move
             , clickable (DirActBtn Shoot) . txt $ "s: " <> dispDAct Shoot
-            , clickable (DirActBtn (Throw mempty)) . txt  $ "t: Throw" <> dispDActCost (Throw mempty)
+            , clickable (DirActBtn (Throw mempty)) . txt  $ "t: Throw " <> dispDActCost (Throw mempty)
             , clickable (DirActBtn Grab) . txt $ "g: " <> dispDAct Grab
             , clickable (UndirActBtn Hearts2HP) . txt  $ "l: Convert Hearts to Health " <> dispUActCost Hearts2HP
             , clickable (UndirActBtn HP2Hearts) . txt  $ "r: Convert Health to Hearts " <> dispUActCost HP2Hearts
