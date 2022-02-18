@@ -119,15 +119,17 @@ draw s = let
     queueBox = borderWithLabel (txt "Action Plan")
         (vBox (defaultElem (txt "Nothing Planned (Yet!)")
         . fmap (str . show) . reverse . toList . queue $ a))
-    dispActCost a = "(" <> show (cost a) <> " AP)"
+    dispDAct act = show act <> " " <> dispDActCost act
+    dispDActCost act = "(" <> show (cost (Dir act N)) <> " AP)"
+    dispUActCost act = "(" <> show (cost (Undir act)) <> " AP)"
     actMenu = borderWithLabel (txt "Available Actions")
         (vBox
-            [ clickable (DirActBtn Move) . txt $ "m: Move " <> dispActCost (Dir Move N)
-            , clickable (DirActBtn Shoot) . txt $ "s: Shoot " <> dispActCost (Dir Shoot N)
-            , clickable (DirActBtn (Throw mempty)) . txt  $ "t: Throw " <> dispActCost (Dir (Throw mempty) N)
-            , clickable (DirActBtn Grab) . txt $ "g: Grab " <> dispActCost (Dir Grab N)
-            , clickable (UndirActBtn Hearts2HP) . txt  $ "l: Convert Hearts to Health " <> dispActCost (Undir Hearts2HP)
-            , clickable (UndirActBtn HP2Hearts) . txt  $ "r: Convert Health to Hearts " <> dispActCost (Undir HP2Hearts)
+            [ clickable (DirActBtn Move) . txt $ "m: " <> dispDAct Move
+            , clickable (DirActBtn Shoot) . txt $ "s: " <> dispDAct Shoot
+            , clickable (DirActBtn (Throw mempty)) . txt  $ "t: Throw" <> dispDActCost (Throw mempty)
+            , clickable (DirActBtn Grab) . txt $ "g: " <> dispDAct Grab
+            , clickable (UndirActBtn Hearts2HP) . txt  $ "l: Convert Hearts to Health " <> dispUActCost Hearts2HP
+            , clickable (UndirActBtn HP2Hearts) . txt  $ "r: Convert Health to Hearts " <> dispUActCost HP2Hearts
             ])
     inventory = str ("Your Inventory: " ++ show (contents =<< getSquare c w))
     selectedAct = str ("Selected Action: " ++ show (currAction s))
@@ -201,7 +203,7 @@ main = do
     gen <- getStdGen
     let width = 20
     let w = mkWorld gen width
-    let w' :: SeqWorld = fromJust $ execStateT (populateWorld (width ^ 2 `div` 3)) w
+    let w' :: SeqWorld = fromJust $ execStateT (populateWorld (width ^ 2 `div` 2)) w
     _ <- defaultMain gtApp $ AppState
         { world = w'
         , actorStack = cycle . actors $ w'
