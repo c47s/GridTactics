@@ -303,8 +303,8 @@ class World w where
   
   doAct :: Action -> Coords -> w -> Maybe w
   doAct a c w = do
-    let c' = getSquare c w
-    me <- c'
+    let s = getSquare c w
+    me <- s
     cont <- contents me
     act <- actor w me
     case a of
@@ -316,13 +316,16 @@ class World w where
         Shoot -> let target = project1 c d (range act) (hittable . fst) w
           in return . hit target $ w
         Throw l -> do
-          let throwee = project1 c d (range act) (hittable . snd) w
+          let throwee = project1 c d (range act) (\(thisSq, nextSq) ->
+                (hittable nextSq && isNothing (join . fmap actorID $ nextSq))
+                || hittable thisSq || isJust (join . fmap actorID $ thisSq)
+                ) w
           cont' <- cont `without` l
           return .
             putLoot l throwee .
             updateSquare (fmap \e -> e {contents = Just cont' }) c $ w
         Grab -> do
-          let grabbee = project1 c d (range act) (grabbable . fst) w
+          let grabbee = step d c
           grab grabbee c w
       Undir Die -> return . putLoot (Loot {hearts = health me, actions = 0}) c .
         updateSquare (fmap \e -> e {health = 0}) c $ w
