@@ -83,7 +83,12 @@ handleEvent s (VtyEvent (EvKey (KChar c) _modifiers)) = case c of
         _ -> s
     '.' -> continue $ s {changingPlayers = True}
     'y' -> continue $ if changingPlayers s
-        then s {actorStack = Unsafe.tail $ actorStack s, changingPlayers = False}
+        then s
+            { actorStack = Unsafe.tail $ actorStack s
+            , currAction = Undir Die
+            , currResource = Actions
+            , changingPlayers = True
+            }
         else s
     'n' -> continue $ if changingPlayers s
         then s {changingPlayers = False}
