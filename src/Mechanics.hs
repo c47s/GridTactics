@@ -327,8 +327,9 @@ class World w where
         Grab -> do
           let grabbee = step d c
           grab grabbee c w
-      Undir Die -> return . putLoot (Loot {hearts = health me, actions = 0}) c .
-        updateSquare (fmap \e -> e {health = 0}) c $ w
+      --Undir Die -> return . putLoot (Loot {hearts = health me, actions = 0}) c .
+      --  updateSquare (fmap \e -> e {health = 0}) c $ w
+      Undir Die -> return $ updateSquare (const Nothing) c w
       Undir Hearts2HP -> do
         cont' <- cont `without` Loot {actions = 0, hearts = 1}
         return . updateSquare (fmap \e -> e {contents = Just cont', health = health e + 1}) c $ w
