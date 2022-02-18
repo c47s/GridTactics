@@ -21,6 +21,7 @@ module Mechanics
     , DirAction (..)
     , UndirAction (..)
     , cost
+    , getDir
 
     , World (..)
     ) where
@@ -77,7 +78,7 @@ instance Monoid Entity where
 data Loot = Loot
   { hearts :: Int
   , actions :: Int
-  } deriving stock (Eq, Show)
+  } deriving stock (Eq, Ord, Show)
 
 contains :: Loot -> Loot -> Bool
 l `contains` l' = hearts l >= hearts l' && actions l >= actions l'
@@ -145,13 +146,13 @@ data DirAction
   | Shoot
   | Throw Loot 
   | Grab
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Ord, Show)
 
 data UndirAction
   = Die
   | Hearts2HP
   | HP2Hearts
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Ord, Show)
 
 cost :: Action -> Int
 cost (Dir Move _)       = 1
@@ -161,6 +162,10 @@ cost (Dir Grab _)       = 1
 cost (Undir Die)        = 0
 cost (Undir Hearts2HP)  = 3
 cost (Undir HP2Hearts)  = 0
+
+getDir :: Action -> Maybe Direction
+getDir (Dir _ d) = Just d
+getDir _ = Nothing
 
 
 
