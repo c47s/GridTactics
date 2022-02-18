@@ -350,7 +350,15 @@ class World w where
         doAct actn (findIn w) $ w
 
   giveAllLoot :: Loot -> w -> w
-  giveAllLoot l w = foldl' (&) w . fmap (putLoot l . (`findActor` w)) . actors $ w
+  giveAllLoot l w = foldl' (&) w
+    . fmap (
+      (\c -> if fromMaybe False . fmap ((> 0) . health) $ getSquare c w
+        then putLoot l c
+        else id
+      )
+      . (`findActor` w)
+      )
+    . actors $ w
   
   runTurn :: w -> w 
   runTurn = execState do
