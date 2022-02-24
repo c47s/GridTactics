@@ -26,6 +26,7 @@ module Mechanics
     , World (..)
     ) where
 
+import           Control.Monad.Morph
 import           Data.Bool.HT (if')
 import           Data.Composition
 import qualified Deque.Lazy as D
@@ -171,9 +172,6 @@ getDir _ = Nothing
 
 {- {- {- WORLD -} -} -}
 
-generalizeState :: (Monad m) => StateT s Identity a -> StateT s m a
-generalizeState = StateT . fmap (return . runIdentity) . runStateT
-
 -- A bunch of squares that may contain at most one Entity each.
 -- Should also have a lookup table that finds the location of a given Actor,
 --   and a list of all empty squares,
@@ -191,7 +189,7 @@ class World w where
 
   register :: Actor -> StateT w Maybe UID -- Register this Actor in the World.
   register a = do
-    aID <- generalizeState $ addActor a
+    aID <- hoist generalize $ addActor a
     let c = coords a
     s <- gets $ getSquare c
     e <- lift s
@@ -217,7 +215,7 @@ class World w where
   scatter e = do
     spaces <- gets empties
     lift . guard . not . null $ spaces
-    gen <- generalizeState splitGen
+    gen <- hoist generalize splitGen
     let c = spaces !! fst (randomR (0, length spaces - 1) gen)
     modify $ putSquare (Just e) c
     return c

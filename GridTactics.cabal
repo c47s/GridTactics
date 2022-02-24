@@ -30,6 +30,7 @@ common common-options
                      , deque
                      , brick
                      , vty
+                     , mmorph
   
   ghc-options:         -Wall
                        -Wcompat
