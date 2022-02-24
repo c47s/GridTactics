@@ -31,6 +31,7 @@ common common-options
                      , brick
                      , vty
                      , mmorph
+                     , servant
   
   ghc-options:         -Wall
                        -Wcompat
@@ -73,6 +74,7 @@ library
   exposed-modules:     GridTactics
   other-modules:       Mechanics
                        SeqWorld
+                       API
 
 executable GridTactics
   import:              common-options
