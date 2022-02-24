@@ -28,6 +28,7 @@ module Mechanics
     ) where
 
 import           Control.Monad.Morph
+import           Data.Aeson hiding ((.:))
 import           Data.Bool.HT (if')
 import           Data.Composition
 import qualified Deque.Lazy as D
@@ -46,7 +47,10 @@ data Entity = Entity
   { actorID :: Maybe UID
   , health :: Int
   , contents :: Maybe Loot
-  }
+  } deriving stock Generic
+
+instance ToJSON Entity
+instance FromJSON Entity
 
 type Square = Maybe Entity
 
@@ -82,7 +86,10 @@ instance Monoid Entity where
 data Loot = Loot
   { hearts :: Int
   , actions :: Int
-  } deriving stock (Eq, Ord, Show)
+  } deriving stock (Eq, Ord, Show, Generic)
+
+instance ToJSON Loot
+instance FromJSON Loot
 
 contains :: Loot -> Loot -> Bool
 l `contains` l' = hearts l >= hearts l' && actions l >= actions l'
@@ -103,6 +110,10 @@ instance Monoid Loot where
 {- {- {- ACTOR -} -} -}
 
 newtype UID = UID {unwrapUID :: Int}
+  deriving stock (Eq, Generic)
+
+instance ToJSON UID
+instance FromJSON UID
 
 -- An Actor should always correspond to exactly one Entity in a World
 data Actor = Actor
