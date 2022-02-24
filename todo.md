@@ -4,15 +4,15 @@
 
 *   [ ] Refactor Loot as a Map from Resources to Ints
 
-*   [ ] Break UI into smaller functions
+*   [x] Break UI into smaller functions
 
 *   [ ] Make attrs
 
 *   [ ] Improve UI
 
-    *   [ ] List o' Actions and corresponding keybinds on left side of map
+    *   [x] List o' Actions and corresponding keybinds on left side of map
 
-        *   [ ] Make clickable
+        *   [x] Make clickable
 
     *   [ ] Use mouse to choose direction
 
@@ -28,6 +28,6 @@
 *   [ ] Add Forms to UI\
     Will probably require adding lens stuff
 
-*   [ ] Add multiplayer between terminals on same machine
+*   [ ] ~~Add multiplayer between terminals on same machine~~
 
 *   [ ] Add multiplayer over network
