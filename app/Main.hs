@@ -208,7 +208,7 @@ main = do
     gen <- getStdGen
     let width = 20
     let w = mkWorld gen width
-    let w' :: SeqWorld = fromJust $ execStateT (populateWorld (width ^ 2 `div` 2)) w
+    let w' :: SeqWorld = fromJust $ execStateT (populateWorld ((width ^ 2) `div` 2)) w
     _ <- defaultMain gtApp $ AppState
         { world = w'
         , actorStack = cycle . actors $ w'
