@@ -181,7 +181,7 @@ cost (Dir Grab _)      = 1
 cost (Dir Heal _)      = 2
 cost (Undir Die)       = 0
 cost (Undir HealMe)    = 3
-cost (Undir ShootMe)   = 0
+cost (Undir ShootMe)   = -1
 
 getDir :: Action -> Maybe Direction
 getDir (Dir _ d) = Just d
@@ -301,6 +301,12 @@ class World w where
         l <- takeLoot grabbee
         modify $ putLoot l grabber
 
+  heal :: Coords -> w -> Maybe w
+  heal c w = do
+      e <- getSquare c w
+      cont' <- contents e >>= (`without` Loot {actions = 0, hearts = 1})
+      return $ updateSquare (const . Just $ e {contents = Just cont', health = health e + 1}) c w
+  
   -- Dump Loot into a Square.
   putLoot :: Loot -> Coords -> w -> w
   putLoot l = putSquare $ Just (Entity Nothing 0 $ Just l)
@@ -330,7 +336,7 @@ class World w where
           guard . passable . getSquare destination $ w
           return . move c destination $ w
         Shoot -> let target = project1 c d (range act) (hittable . fst) w
-          in return . hit target $ w
+          in return $ hit target w
         Throw l -> do
           let throwee = project1 c d (range act) (\(thisSq, nextSq) ->
                 (hittable nextSq && isNothing (join . fmap actorID $ nextSq))
@@ -338,24 +344,24 @@ class World w where
                 ) w
           cont' <- cont `without` l
           return .
-            putLoot l throwee .
-            updateSquare (fmap \e -> e {contents = Just cont' }) c $ w
+            putLoot l throwee $
+            updateSquare (fmap \e -> e {contents = Just cont' }) c w
         Grab -> do
           let grabbee = step d c
           grab grabbee c w
-        Heal -> undefined
+        Heal -> heal (step d c) w
       Undir Die -> return
         -- . putLoot (Loot {hearts = health me, actions = 0}) c
-        . updateSquare (fmap \e -> e
+        $ updateSquare (fmap \e -> e
           { health = 0
           , contents = Just (Loot
             { hearts = 0
             , actions = cost (Undir Die)
             })
           }
-          ) c $ w
-      Undir HealMe -> undefined
-      Undir ShootMe -> return . hit c $ w
+          ) c w
+      Undir HealMe -> heal c w
+      Undir ShootMe -> return $ hit c w
 
   -- Pop an Action from the Actor's queue, and do it.
   -- If the queue is empty, keep the world unchanged.
