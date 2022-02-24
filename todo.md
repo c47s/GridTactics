@@ -24,8 +24,9 @@
 
         *   [ ] Changing Actor
 
-    *   [ ] Make action queue editable\
-        Will probably require switching Actor's queue attribute over to a Seq
+    *   [ ] Make action queue editable
+
+        *   [x] Allow deleting last queue item
 
 *   [ ] Add Forms to UI\
     Will probably require adding lens stuff

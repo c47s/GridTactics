@@ -6,6 +6,7 @@ import           Brick.Widgets.Border
 import           Brick.Widgets.Center
 import           Brick.Widgets.Table
 import           Data.Composition
+import qualified Deque.Lazy as D
 import           Graphics.Vty
 import           GridTactics
 import           Relude
@@ -103,6 +104,9 @@ handleEvent s (MouseDown (DirActBtn a) _ _ _) = continue $ selDirAct a s
 handleEvent s (MouseDown (UndirActBtn a) _ _ _) = continue $ selUndirAct a s
 handleEvent s (VtyEvent (EvKey KEnter _modifiers)) = continue . flip modifyWorld s $
     updateActor (pushAct $ currAction s) (currActor s)
+handleEvent s (VtyEvent (EvKey KBS _modifiers)) = continue . flip modifyWorld s $
+    flip updateActor (currActor s) \a ->
+        a {queue = D.tail $ queue a}
 handleEvent s (VtyEvent (EvKey KHome _modifiers)) = continue $ modifyWorld runTurn s
 handleEvent s (VtyEvent (EvKey KEsc _modifiers)) = halt s
 handleEvent s _otherEvent = continue s
@@ -204,7 +208,7 @@ modifyM f = do
 populateWorld :: (World w) => Int -> StateT w Maybe ()
 populateWorld numScatters = do
     replicateM_ numScatters . scatter $ Entity Nothing 2 (Just $ Loot {hearts = 0, actions = 1})
-    modifyM $ scatterActors ["Matt", "Nathaniel"]
+    modifyM $ scatterActors ["Matt", "Batt", "Catt", "Datt", "Nahan", "Bahan", "Cahan", "Dahan"]
         (Entity Nothing 3 (Just $ Loot {hearts = 2, actions = 0}))
         (Actor {name = "", coords = (0,0), range = 2, vision = 3, queue = empty})
     modify runTurn
