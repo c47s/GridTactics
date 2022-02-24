@@ -3,6 +3,7 @@ module Mechanics
     , Square
     , Grid
     , passable
+    , dead
     , hittable
     , grabbable
 
@@ -62,11 +63,13 @@ passable (Just (Entity (Just _) _ _)) = False -- Entities that have an Actor are
 passable (Just (Entity Nothing hp _)) = hp <= 0 -- Entities that have positive health are impassable.
 -- Otherwise, entities are passable, are looted when stepped on, and are destroyed when looted.
 
--- Empty squares and Entities with zero health can be shot and thrown through.
-hittable :: Square -> Bool
-hittable = maybe False $ (> 0) . health
+dead :: Square -> Bool
+dead = maybe True $ (<= 0) . health
 
--- A square is grabbable only if it contains loot.
+-- Does it stop bullets and thrown loot?
+hittable :: Square -> Bool
+hittable = not . dead
+
 grabbable :: Square -> Bool
 grabbable = maybe False $ (/= mempty) . contents
 
@@ -159,7 +162,7 @@ data Action
 data DirAction
   = Move
   | Shoot
-  | Throw Loot 
+  | Throw Loot
   | Grab
   | Heal
   deriving stock (Eq, Ord, Show)
@@ -285,14 +288,13 @@ class World w where
     s <- gets $ getSquare c
     e <- lift s
     cont <- lift $ contents e
-    lift . guard $ health e <= 0
     modify $ updateSquare (fmap \e' -> e' {contents = Nothing}) c
     return cont
   
   grab :: Coords -> Coords -> w -> Maybe w
   grab grabbee grabber w = do
     let grabbee' = getSquare grabbee w
-    guard $ grabbable grabbee'
+    guard $ grabbable grabbee' && dead grabbee'
     if passable grabbee'
       then return $ move grabbee grabber w
       else flip execStateT w do
