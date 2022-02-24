@@ -198,7 +198,7 @@ modifyM f = do
 populateWorld :: (World w) => Int -> StateT w Maybe ()
 populateWorld numScatters = do
     replicateM_ numScatters . scatter $ Entity Nothing 2 (Just $ Loot {hearts = 0, actions = 1})
-    modifyM $ scatterActors ["Dopey", "Doc", "Grumpy", "Happy", "Sleepy", "Sneezy", "Bashful"]
+    modifyM $ scatterActors ["Matt", "Nathaniel"]
         (Entity Nothing 3 (Just $ Loot {hearts = 2, actions = 0}))
         (Actor {name = "", coords = (0,0), range = 2, vision = 3, queue = empty})
     modify runTurn
@@ -206,9 +206,10 @@ populateWorld numScatters = do
 main :: IO ()
 main = do
     gen <- getStdGen
-    let width = 20
+    let width = 8
+    let area = width ^ (2 :: Int)
     let w = mkWorld gen width
-    let w' :: SeqWorld = fromJust $ execStateT (populateWorld ((width ^ 2) `div` 2)) w
+    let w' :: SeqWorld = fromJust $ execStateT (populateWorld (area `div` 2)) w
     _ <- defaultMain gtApp $ AppState
         { world = w'
         , actorStack = cycle . actors $ w'
