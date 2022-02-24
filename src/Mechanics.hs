@@ -1,6 +1,7 @@
 module Mechanics
     ( Entity (..)
     , Square
+    , Grid
     , passable
     , hittable
     , grabbable
@@ -48,6 +49,8 @@ data Entity = Entity
   }
 
 type Square = Maybe Entity
+
+type Grid = [[Square]]
 
 passable :: Square -> Bool
 passable Nothing = True -- An empty square is passable.
@@ -207,7 +210,7 @@ class World w where
   actor w e = flip lookupActor w <$> actorID e
 
   -- Get a view of the World with given radius centered at the given Coords.
-  view :: Int -> Coords -> w -> [[Square]]
+  view :: Int -> Coords -> w -> Grid
   view r c w = (`getSquare` w) <<$>> ([[bimap (+ x) (+ y) c | x <- [- r .. r]] | y <- [- r .. r]])
 
   -- Place an Entity in a random empty Square. Fails if all Squares are full.
