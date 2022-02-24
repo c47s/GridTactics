@@ -73,7 +73,6 @@ handleEvent s (VtyEvent (EvKey (KChar c) _modifiers)) = case c of
     '-' -> continue case currAction s of
         Dir (Throw l) d -> s {currAction = Dir (Throw $ maybeToMonoid (l `without` singloot (currResource s))) d}
         _ -> s
-    'z' -> continue $ modifyWorld (\w -> fromMaybe w $ execStateT (scatter $ Entity Nothing 3 (Just $ Loot {hearts = 0, actions = 5})) w) s
     '}' -> continue $ s {currResource = next . currResource $ s}
     ']' -> continue case currAction s of
         Dir a d -> s {currAction = Dir a (next d)}
@@ -82,7 +81,9 @@ handleEvent s (VtyEvent (EvKey (KChar c) _modifiers)) = case c of
     '[' -> continue case currAction s of
         Dir a d -> s {currAction = Dir a (prev d)}
         _ -> s
-    '.' -> continue $ s {changingPlayers = True}
+    '.' -> continue if changingPlayers s
+        then s {actorStack = Unsafe.head (actorStack s) : drop 2 (actorStack s)}
+        else s {changingPlayers = True}
     'y' -> continue $ if changingPlayers s
         then s
             { actorStack = Unsafe.tail $ actorStack s
@@ -92,15 +93,17 @@ handleEvent s (VtyEvent (EvKey (KChar c) _modifiers)) = case c of
             }
         else s
     'n' -> continue $ if changingPlayers s
-        then s {changingPlayers = False}
+        then s { changingPlayers = False
+               , actorStack = dropWhile (/= Unsafe.head (actorStack s)) . Unsafe.tail $ actorStack s
+               }
         else s
     'q' -> halt s
     _ -> continue s
 handleEvent s (MouseDown (DirActBtn a) _ _ _) = continue $ selDirAct a s
 handleEvent s (MouseDown (UndirActBtn a) _ _ _) = continue $ selUndirAct a s
-handleEvent s (VtyEvent (EvKey KEnter _modifiers)) = continue $
-    s {world = updateActor (pushAct $ currAction s) (currActor s) $ world s}
-handleEvent s (VtyEvent (EvKey KHome _modifiers)) = continue $ s {world = runTurn $ world s}
+handleEvent s (VtyEvent (EvKey KEnter _modifiers)) = continue . flip modifyWorld s $
+    updateActor (pushAct $ currAction s) (currActor s)
+handleEvent s (VtyEvent (EvKey KHome _modifiers)) = continue $ modifyWorld runTurn s
 handleEvent s (VtyEvent (EvKey KEsc _modifiers)) = halt s
 handleEvent s _otherEvent = continue s
 
@@ -150,6 +153,7 @@ draw s = let
     playerSwitchScreen = vCenter . vBox . fmap hCenter $
         [ txt $ "Ready, " <> name nextA <> "?"
         , txt "(y/n)"
+        , txt "Press . for next player"
         ]
     controlScreen = vCenter $ hBox
         [ actMenu
@@ -214,7 +218,7 @@ main = do
     let w' :: SeqWorld = fromJust $ execStateT (populateWorld (area `div` 2)) w
     _ <- defaultMain gtApp $ AppState
         { world = w'
-        , actorStack = cycle . actors $ w'
+        , actorStack = Unsafe.head (actors w') : cycle (actors w')
         , currAction = Undir Die
         , currResource = Actions
         , changingPlayers = True

@@ -14,6 +14,8 @@
 
         *   [x] Make clickable
 
+    *   [x] Choose any player in player change screen
+
     *   [ ] Use mouse to choose direction
 
     *   [ ] Clickable buttons for other UI interactions
