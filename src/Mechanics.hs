@@ -150,22 +150,24 @@ data DirAction
   | Shoot
   | Throw Loot 
   | Grab
+  | Heal
   deriving stock (Eq, Ord, Show)
 
 data UndirAction
   = Die
-  | Hearts2HP
-  | HP2Hearts
+  | HealMe
+  | ShootMe
   deriving stock (Eq, Ord, Show)
 
 cost :: Action -> Int
-cost (Dir Move _)       = 1
-cost (Dir Shoot _)      = 1
-cost (Dir (Throw _) _)  = 0
-cost (Dir Grab _)       = 1
-cost (Undir Die)        = 0
-cost (Undir Hearts2HP)  = 3
-cost (Undir HP2Hearts)  = 0
+cost (Dir Move _)      = 1
+cost (Dir Shoot _)     = 1
+cost (Dir (Throw _) _) = 0
+cost (Dir Grab _)      = 1
+cost (Dir Heal _)      = 2
+cost (Undir Die)       = 0
+cost (Undir HealMe)    = 3
+cost (Undir ShootMe)   = 0
 
 getDir :: Action -> Maybe Direction
 getDir (Dir _ d) = Just d
@@ -328,6 +330,7 @@ class World w where
         Grab -> do
           let grabbee = step d c
           grab grabbee c w
+        Heal -> undefined
       Undir Die -> return
         -- . putLoot (Loot {hearts = health me, actions = 0}) c
         . updateSquare (fmap \e -> e
@@ -338,10 +341,8 @@ class World w where
             })
           }
           ) c $ w
-      Undir Hearts2HP -> do
-        cont' <- cont `without` Loot {actions = 0, hearts = 1}
-        return . updateSquare (fmap \e -> e {contents = Just cont', health = health e + 1}) c $ w
-      Undir HP2Hearts -> return . hit c $ w
+      Undir HealMe -> undefined
+      Undir ShootMe -> return . hit c $ w
 
   -- Pop an Action from the Actor's queue, and do it.
   -- If the queue is empty, keep the world unchanged.

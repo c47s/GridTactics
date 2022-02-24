@@ -63,9 +63,10 @@ handleEvent s (VtyEvent (EvKey (KChar c) _modifiers)) = case c of
     's' -> continue $ selDirAct Shoot s
     't' -> continue $ selDirAct (Throw mempty) s
     'g' -> continue $ selDirAct Grab s
+    'h' -> continue $ selDirAct Heal s
     'd' -> continue $ selUndirAct Die s
-    'l' -> continue $ selUndirAct Hearts2HP s -- l for heaLth
-    'r' -> continue $ selUndirAct HP2Hearts s -- r for heaRts
+    'H' -> continue $ selUndirAct HealMe s
+    'S' -> continue $ selUndirAct ShootMe s
     ((`elem` ['=','+']) -> True) -> continue case currAction s of
         Dir (Throw l) d -> s {currAction = Dir (Throw (l <> singloot (currResource s))) d}
         _ -> s
@@ -85,7 +86,7 @@ handleEvent s (VtyEvent (EvKey (KChar c) _modifiers)) = case c of
     'y' -> continue $ if changingPlayers s
         then s
             { actorStack = Unsafe.tail $ actorStack s
-            , currAction = Undir Die
+            , currAction = Undir ShootMe
             , currResource = Actions
             , changingPlayers = False
             }
@@ -133,8 +134,9 @@ draw s = let
             , clickable (DirActBtn Shoot) . txt $ "s: " <> dispDAct Shoot
             , clickable (DirActBtn (Throw mempty)) . txt  $ "t: Throw " <> dispDActCost (Throw mempty)
             , clickable (DirActBtn Grab) . txt $ "g: " <> dispDAct Grab
-            , clickable (UndirActBtn Hearts2HP) . txt  $ "l: Convert Hearts to Health " <> dispUActCost Hearts2HP
-            , clickable (UndirActBtn HP2Hearts) . txt  $ "r: Convert Health to Hearts " <> dispUActCost HP2Hearts
+            , clickable (DirActBtn Heal) . txt $ "h: " <> dispDAct Heal
+            , clickable (UndirActBtn HealMe) . txt  $ "H: Heal Self " <> dispUActCost HealMe
+            , clickable (UndirActBtn ShootMe) . txt  $ "S: Shoot Self " <> dispUActCost ShootMe
             ])
     inventory = str ("Your Inventory: " ++ show (contents =<< getSquare c w))
     selectedAct = str ("Selected Action: " ++ show (currAction s))
