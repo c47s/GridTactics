@@ -171,6 +171,7 @@ data UndirAction
   = Die
   | HealMe
   | ShootMe
+  | Wait
   deriving stock (Eq, Ord, Show)
 
 cost :: Action -> Int
@@ -182,6 +183,7 @@ cost (Dir Heal _)      = 2
 cost (Undir Die)       = 0
 cost (Undir HealMe)    = 3
 cost (Undir ShootMe)   = -1
+cost (Undir Wait)      = 0
 
 getDir :: Action -> Maybe Direction
 getDir (Dir _ d) = Just d
@@ -362,6 +364,7 @@ class World w where
           ) c w
       Undir HealMe -> heal c w
       Undir ShootMe -> return $ hit c w
+      Undir Wait -> return w
 
   -- Pop an Action from the Actor's queue, and do it.
   -- If the queue is empty, keep the world unchanged.

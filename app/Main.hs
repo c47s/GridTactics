@@ -68,6 +68,7 @@ handleEvent s (VtyEvent (EvKey (KChar c) _modifiers)) = case c of
     'd' -> continue $ selUndirAct Die s
     'H' -> continue $ selUndirAct HealMe s
     'S' -> continue $ selUndirAct ShootMe s
+    'w' -> continue $ selUndirAct Wait s
     ((`elem` ['=','+']) -> True) -> continue case currAction s of
         Dir (Throw l) d -> s {currAction = Dir (Throw (l <> singloot (currResource s))) d}
         _ -> s
@@ -142,8 +143,9 @@ draw s = let
             , clickable (DirActBtn (Throw mempty)) . txt  $ "t: Throw " <> dispDActCost (Throw mempty)
             , clickable (DirActBtn Grab) . txt $ "g: " <> dispDAct Grab
             , clickable (DirActBtn Heal) . txt $ "h: " <> dispDAct Heal
-            , clickable (UndirActBtn HealMe) . txt  $ "H: Heal Self " <> dispUActCost HealMe
-            , clickable (UndirActBtn ShootMe) . txt  $ "S: Shoot Self " <> dispUActCost ShootMe
+            , clickable (UndirActBtn HealMe) . txt $ "H: Heal Self " <> dispUActCost HealMe
+            , clickable (UndirActBtn ShootMe) . txt $ "S: Shoot Self " <> dispUActCost ShootMe
+            , clickable (UndirActBtn Wait) . txt $ "w: Wait " <> dispUActCost Wait
             ])
     inventory = str ("Your Inventory: " ++ show (contents =<< getSquare c w))
     selectedAct = vBox . fmap hCenter $
