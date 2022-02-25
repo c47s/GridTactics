@@ -89,7 +89,7 @@ handleEvent s (VtyEvent (EvKey (KChar c) _modifiers)) = case c of
     'y' -> continue $ if changingPlayers s
         then s
             { actorStack = Unsafe.tail $ actorStack s
-            , currAction = Undir ShootMe
+            , currAction = Undir Wait
             , currResource = Actions
             , changingPlayers = False
             }
@@ -133,19 +133,19 @@ draw s = let
     queueBox = borderWithLabel (txt "Action Plan")
         (vBox (defaultElem (txtWrap "Nothing Planned (Yet!)")
         . fmap (strWrap . show) . reverse . toList . queue $ a))
-    dispDAct act = show act <> " " <> dispDActCost act
-    dispDActCost act = "(" <> show (cost (Dir act N)) <> " AP)"
-    dispUActCost act = "(" <> show (cost (Undir act)) <> " AP)"
-    actMenu = borderWithLabel (txt "Available Actions")
-        (vBox
-            [ clickable (DirActBtn Move) . txt $ "m: " <> dispDAct Move
-            , clickable (DirActBtn Shoot) . txt $ "s: " <> dispDAct Shoot
-            , clickable (DirActBtn (Throw mempty)) . txt  $ "t: Throw " <> dispDActCost (Throw mempty)
-            , clickable (DirActBtn Grab) . txt $ "g: " <> dispDAct Grab
-            , clickable (DirActBtn Heal) . txt $ "h: " <> dispDAct Heal
-            , clickable (UndirActBtn HealMe) . txt $ "H: Heal Self " <> dispUActCost HealMe
-            , clickable (UndirActBtn ShootMe) . txt $ "S: Shoot Self " <> dispUActCost ShootMe
-            , clickable (UndirActBtn Wait) . txt $ "w: Wait " <> dispUActCost Wait
+    dispDActCost act = clickable (DirActBtn act) . txt $ show (cost (Dir act N))
+    dispUActCost act = clickable (UndirActBtn act) . txt $ show (cost (Undir act))
+    actMenu = joinBorders $ border
+        (renderTable . alignRight 1 . rowBorders False . columnBorders False . surroundingBorder False . table $
+            [ [txt "_: Action", txt "Cost"]
+            , [clickable (DirActBtn Move) . txt $ "m: Move", dispDActCost Move]
+            , [clickable (DirActBtn Shoot) . txt $ "s: Shoot", dispDActCost Shoot]
+            , [clickable (DirActBtn (Throw mempty)) . txt  $ "t: Throw", dispDActCost (Throw mempty)]
+            , [clickable (DirActBtn Grab) . txt $ "g: Grab", dispDActCost Grab]
+            , [clickable (DirActBtn Heal) . txt $ "h: Heal", dispDActCost Heal]
+            , [clickable (UndirActBtn HealMe) . txt $ "H: Heal Self", dispUActCost HealMe]
+            , [clickable (UndirActBtn ShootMe) . txt $ "S: Shoot Self", dispUActCost ShootMe]
+            , [clickable (UndirActBtn Wait) . txt $ "w: Wait", dispUActCost Wait]
             ])
     inventory = str ("Your Inventory: " ++ show (contents =<< getSquare c w))
     selectedAct = vBox . fmap hCenter $
@@ -240,7 +240,7 @@ main = do
     _ <- defaultMain gtApp $ AppState
         { world = w'
         , actorStack = Unsafe.head (actors w') : cycle (actors w')
-        , currAction = Undir Die
+        , currAction = Undir Wait
         , currResource = Actions
         , changingPlayers = True
         }
