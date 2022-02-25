@@ -130,8 +130,8 @@ draw s = let
     c = findActor aID w
     worldTable = renderTable . grid2Table w $ view (vision a) c w
     queueBox = borderWithLabel (txt "Action Plan")
-        (vBox (defaultElem (txt "Nothing Planned (Yet!)")
-        . fmap (str . show) . reverse . toList . queue $ a))
+        (vBox (defaultElem (txtWrap "Nothing Planned (Yet!)")
+        . fmap (strWrap . show) . reverse . toList . queue $ a))
     dispDAct act = show act <> " " <> dispDActCost act
     dispDActCost act = "(" <> show (cost (Dir act N)) <> " AP)"
     dispUActCost act = "(" <> show (cost (Undir act)) <> " AP)"
@@ -146,28 +146,43 @@ draw s = let
             , clickable (UndirActBtn ShootMe) . txt  $ "S: Shoot Self " <> dispUActCost ShootMe
             ])
     inventory = str ("Your Inventory: " ++ show (contents =<< getSquare c w))
-    selectedAct = str ("Selected Action: " ++ show (currAction s))
-        <=> case currAction s of
-            Dir (Throw _) _ -> hCenter $ vBox
-                [ str ("Selected Resource: " ++ show (currResource s))
-                , txt "+ and - adjust resource amount"
+    selectedAct = vBox . fmap hCenter $
+        [ str ("Selected Action: " ++ show (currAction s))
+        , case currAction s of
+            Dir (Throw _) _ ->
+                str ("Selected Resource: " ++ show (currResource s))
+            _ -> emptyWidget
+        ]
+    lSidebar = vBox
+        [ actMenu
+        , case currAction s of
+            Dir _ _ -> txt "[ and ] rotate direction"
+            _ -> emptyWidget 
+        , case currAction s of
+            Dir (Throw _) _ -> vBox
+                [ txt "+ and - adjust resource amount"
                 , txt "{ and } select resource type"
                 ]
             _ -> emptyWidget
+        ]
+    rSidebar = queueBox
+    centerContent = vBox . fmap hCenter $
+        [ txt ("You are " <> name a)
+        , worldTable
+        , inventory
+        , selectedAct
+        ]
+    centerWidthPercent = 50
+    sbarWidthPercent = (100 - centerWidthPercent) `div` 2
+    controlScreen = vCenter $ hBox
+        [ hLimitPercent sbarWidthPercent . hCenter $ lSidebar
+        , hCenter centerContent
+        , hLimitPercent sbarWidthPercent . hCenter $ rSidebar
+        ]
     playerSwitchScreen = vCenter . vBox . fmap hCenter $
         [ txt $ "Ready, " <> name nextA <> "?"
         , txt "(y/n)"
         , txt "Press . for next player"
-        ]
-    controlScreen = vCenter $ hBox
-        [ actMenu
-        , vBox . fmap hCenter $
-            [ txt ("You are " <> name a)
-            , worldTable
-            , inventory
-            , selectedAct
-            ]
-        , queueBox
         ]
     in  [
         if changingPlayers s
