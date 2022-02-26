@@ -6,7 +6,11 @@
 
 *   [x] Break UI into smaller functions
 
-*   [ ] Make attrs
+*   [ ] Move general, reusable utility functions into a separate file
+
+    Functions like stateToIO and doState
+
+*   [ ] CHALLENGE: Can I rewrite modifyM using mmorph functions.&#x20;
 
 *   [ ] Improve UI
 
