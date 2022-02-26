@@ -29,6 +29,7 @@ module Mechanics
     ) where
 
 import           Control.Monad.Morph
+import           Control.Zipper
 import           Data.Bool.HT (if')
 import           Data.Composition
 import qualified Deque.Lazy as D
@@ -115,6 +116,7 @@ data Actor = Actor
   , range :: Int -- Shooting & throwing distance
   , vision :: Int -- Seeing distance
   , queue :: Deque Action
+  , done :: Bool -- Player is done entering actions
   } deriving stock (Eq, Generic)
 
 pushAct :: Action -> Actor -> Actor
@@ -230,6 +232,13 @@ class World w where
     let c = spaces !! fst (randomR (0, length spaces - 1) gen)
     modify $ putSquare (Just e) c
     return c
+
+  fill :: Entity -> w -> w
+  fill e = farthest (execStateT $ scatter e)
+
+  fillFraction :: (RealFrac n) => n -> Entity -> w -> w
+  fillFraction portionToFill e w = tugs (execStateT $ scatter e)
+    (floor $ (fromIntegral . length $ empties w) * portionToFill) w
 
   scatterActor :: Entity -> Actor -> StateT w Maybe UID
   scatterActor e a = do

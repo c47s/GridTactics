@@ -36,6 +36,8 @@ common common-options
                      , warp
                      , http-api-data
                      , mtl
+                     , zippers
+                     , haskeline
   
   ghc-options:         -Wall
                        -Wcompat
@@ -85,10 +87,19 @@ library
                        WebInstances
                        API
 
-executable GridTactics
+executable Client
   import:              common-options
   hs-source-dirs:      app
-  main-is:             Main.hs
+  main-is:             Client.hs
+  build-depends:       GridTactics
+  ghc-options:         -threaded
+                       -rtsopts
+                       -with-rtsopts=-N
+
+executable Server
+  import:              common-options
+  hs-source-dirs:      app
+  main-is:             Server.hs
   build-depends:       GridTactics
   ghc-options:         -threaded
                        -rtsopts
