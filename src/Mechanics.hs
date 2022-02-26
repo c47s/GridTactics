@@ -29,7 +29,6 @@ module Mechanics
     ) where
 
 import           Control.Monad.Morph
-import           Data.Aeson hiding ((.:))
 import           Data.Bool.HT (if')
 import           Data.Composition
 import qualified Deque.Lazy as D
@@ -49,9 +48,6 @@ data Entity = Entity
   , health :: Int
   , contents :: Maybe Loot
   } deriving stock Generic
-
-instance ToJSON Entity
-instance FromJSON Entity
 
 type Square = Maybe Entity
 
@@ -91,9 +87,6 @@ data Loot = Loot
   , actions :: Int
   } deriving stock (Eq, Ord, Show, Generic)
 
-instance ToJSON Loot
-instance FromJSON Loot
-
 contains :: Loot -> Loot -> Bool
 l `contains` l' = hearts l >= hearts l' && actions l >= actions l'
 
@@ -115,9 +108,6 @@ instance Monoid Loot where
 newtype UID = UID {unwrapUID :: Int}
   deriving stock (Eq, Generic)
 
-instance ToJSON UID
-instance FromJSON UID
-
 -- An Actor should always correspond to exactly one Entity in a World
 data Actor = Actor
   { name :: Text
@@ -125,7 +115,7 @@ data Actor = Actor
   , range :: Int -- Shooting & throwing distance
   , vision :: Int -- Seeing distance
   , queue :: Deque Action
-  } deriving stock Eq
+  } deriving stock (Eq, Generic)
 
 pushAct :: Action -> Actor -> Actor
 pushAct actn a = a {queue = D.cons actn (queue a)}
@@ -136,7 +126,7 @@ pushAct actn a = a {queue = D.cons actn (queue a)}
 type Coords = (Int, Int)
 
 data Direction = N | NE | E | SE | S | SW | W | NW
-  deriving stock (Eq, Enum, Bounded, Show)
+  deriving stock (Eq, Enum, Bounded, Show, Generic)
 
 step :: Direction -> Coords -> Coords
 step N = second (+ 1)
@@ -157,7 +147,7 @@ stepTwice = (.) `on` step
 data Action
   = Dir DirAction Direction
   | Undir UndirAction
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 data DirAction
   = Move
@@ -165,14 +155,14 @@ data DirAction
   | Throw Loot
   | Grab
   | Heal
-  deriving stock (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show, Generic)
 
 data UndirAction
   = Die
   | HealMe
   | ShootMe
   | Wait
-  deriving stock (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show, Generic)
 
 cost :: Action -> Int
 cost (Dir Move _)      = 1

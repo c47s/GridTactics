@@ -31,8 +31,10 @@ common common-options
                      , brick
                      , vty
                      , mmorph
-                     , servant
+                     , servant-server
                      , aeson
+                     , warp
+                     , http-api-data
   
   ghc-options:         -Wall
                        -Wcompat
@@ -68,7 +70,9 @@ common common-options
                        TupleSections
                        TypeApplications
                        TypeOperators
+                       UndecidableInstances
                        ViewPatterns
+                       FlexibleInstances
 
 
 library
@@ -77,6 +81,7 @@ library
   exposed-modules:     GridTactics
   other-modules:       Mechanics
                        SeqWorld
+                       WebInstances
                        API
 
 executable GridTactics
