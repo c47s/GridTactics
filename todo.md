@@ -38,3 +38,9 @@
 *   [ ] ~~Add multiplayer between terminals on same machine~~
 
 *   [ ] Add multiplayer over network
+
+    *   [x] Make API
+
+    *   [ ] Make server
+
+    *   [ ] Make client

@@ -35,6 +35,7 @@ common common-options
                      , aeson
                      , warp
                      , http-api-data
+                     , mtl
   
   ghc-options:         -Wall
                        -Wcompat

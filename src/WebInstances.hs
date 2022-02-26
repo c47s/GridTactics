@@ -5,6 +5,7 @@ module WebInstances () where
 import Data.Aeson (ToJSON, FromJSON)
 import Deque.Lazy (Deque)
 import Mechanics
+import Relude
 import Web.HttpApiData
 
 

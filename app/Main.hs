@@ -227,7 +227,7 @@ populateWorld numScatters = do
     replicateM_ numScatters . scatter $ Entity Nothing 2 (Just $ Loot {hearts = 0, actions = 1})
     modifyM $ scatterActors ["Matt", "Batt", "Catt", "Datt", "Nahan", "Bahan", "Cahan", "Dahan"]
         (Entity Nothing 3 (Just $ Loot {hearts = 2, actions = 0}))
-        (Actor {name = "", coords = (0,0), range = 2, vision = 3, queue = empty})
+        (Actor {name = "", coords = (0,0), range = 2, vision = 3, queue = empty, done = False})
     modify runTurn
 
 main :: IO ()
