@@ -38,6 +38,7 @@ common common-options
                      , mtl
                      , zippers
                      , haskeline
+                     , ghc
   
   ghc-options:         -Wall
                        -Wcompat
@@ -92,7 +93,8 @@ executable Client
   hs-source-dirs:      app
   main-is:             Client.hs
   build-depends:       GridTactics
-  ghc-options:         -threaded
+  ghc-options:         -main-is Client
+                       -threaded
                        -rtsopts
                        -with-rtsopts=-N
 
@@ -101,6 +103,7 @@ executable Server
   hs-source-dirs:      app
   main-is:             Server.hs
   build-depends:       GridTactics
-  ghc-options:         -threaded
+  ghc-options:         -main-is Server
+                       -threaded
                        -rtsopts
                        -with-rtsopts=-N
