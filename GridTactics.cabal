@@ -20,25 +20,27 @@ source-repository head
 
 common common-options
   build-depends:       base
-                     , relude
+                     , aeson
+                     , brick
+                     , composition
+                     , deque
+                     , extra
+                     , ghc
+                     , haskeline
+                     , http-api-data
+                     , mmorph
+                     , mtl
                      , random
                      , random-shuffle
-                     , extra
-                     , composition
-                     , utility-ht
-                     , text
-                     , deque
-                     , brick
-                     , vty
-                     , mmorph
+                     , relude
+                     , servant-client
                      , servant-server
-                     , aeson
+                     , servant-flatten
+                     , text
+                     , utility-ht
+                     , vty
                      , warp
-                     , http-api-data
-                     , mtl
                      , zippers
-                     , haskeline
-                     , ghc
   
   ghc-options:         -Wall
                        -Wcompat
