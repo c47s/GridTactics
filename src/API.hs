@@ -2,6 +2,7 @@
 
 module API
     ( API
+    , api
     , Config (..)
     , runServer
     ) where
@@ -11,6 +12,7 @@ import Mechanics
 import Network.Wai.Handler.Warp
 import Relude
 import Servant
+import Servant.API.Flatten
 import Util
 import WebInstances ()
 
@@ -38,6 +40,9 @@ type NumDoneAPI = "done" :> Get '[JSON] Int
 
 type API = "actor"  :> ActorAPI
       :<|> "actors" :> ActorsAPI
+
+api :: Proxy API
+api = Proxy
 
 
 
@@ -106,4 +111,4 @@ hAPI conf ref = hActor conf ref
 runServer :: (World w) => Int -> w -> Config -> IO ()
 runServer port initialWorld config = do
     wRef <- newIORef initialWorld
-    run port (serve (Proxy :: Proxy API) (hAPI config wRef))
+    run port (serve (flatten api) (hAPI config wRef))
