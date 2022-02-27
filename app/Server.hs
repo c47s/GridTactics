@@ -1,4 +1,4 @@
-module Server where
+module Server (main) where
 
 import Data.Maybe.HT
 import GHC.Data.Maybe

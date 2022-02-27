@@ -1,4 +1,4 @@
-module Client where
+module Client (main) where
 
 import Relude
 
