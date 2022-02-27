@@ -2,6 +2,7 @@ module Util where
 
 import Control.Monad.Except
 import Data.Maybe.HT
+import GHC.Data.Maybe
 import Relude
 import Servant
 import System.Console.Haskeline
