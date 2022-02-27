@@ -11,39 +11,10 @@ import Mechanics
 import Network.Wai.Handler.Warp
 import Relude
 import Servant
+import Util
 import WebInstances ()
 
 
-
-stateToIO :: (MonadIO io) => IORef s -> State s a -> io a
-stateToIO ref s = liftIO do
-    before <- readIORef ref
-    modifyIORef' ref $ execState s
-    return $ evalState s before
-
-doState :: (MonadIO io) => State s a -> IORef s -> io a
-doState = flip stateToIO
-
-maybeState :: StateT s Maybe a -> State s (Maybe a)
-maybeState t = state \s -> let
-    m = runStateT t s
-    a = fst <$> m
-    s' = maybe s snd m
-    in (a,s')
-
-hoistExcept :: (MonadError e m) => Except e a -> m a
-hoistExcept exc = do
-    case runExcept exc of
-        Left e  -> throwError e
-        Right a -> return a
-
-hoistEither' :: (MonadError e m) => Either e a -> m a
-hoistEither' = hoistExcept . hoistEither
-
-
-
-type Modify ts a = Get ts a
-              :<|> ReqBody ts a :> PostNoContent
 
 type ActorAPI = Capture "id" UID
     :> ( ActorSelfAPI

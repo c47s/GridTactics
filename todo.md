@@ -6,7 +6,7 @@
 
 *   [x] Break UI into smaller functions
 
-*   [ ] Move general, reusable utility functions into a separate file
+*   [x] Move general, reusable utility functions into a separate file
 
     Functions like stateToIO and doState
 

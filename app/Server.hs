@@ -1,33 +1,10 @@
 module Server (main) where
 
-import Data.Maybe.HT
-import GHC.Data.Maybe
 import GridTactics
 import Relude
 import System.Console.Haskeline
 import System.Random
-
-untilValidAnd :: (Read a, MonadIO m) => (a -> Maybe String) -> InputT m (Maybe String) -> InputT m a
-untilValidAnd chk getInput = do
-    ln <- getInput
-    case readMaybe =<< ln of
-        Nothing -> do
-            outputStrLn "Invalid input."
-            untilValid getInput
-        Just a -> case chk a of
-            Just msg -> do
-                outputStrLn msg
-                untilValidAnd chk getInput
-            Nothing -> return a
-
-check :: msg -> (a -> Bool) -> (a -> Maybe msg)
-check msg p a = toMaybe (not $ p a) msg
-
-(>-) :: (a -> Maybe msg) -> (a -> Maybe msg) -> (a -> Maybe msg)
-(>-) = liftA2 firstJust
-
-untilValid :: (Read a, MonadIO m) => InputT m (Maybe String) -> InputT m a
-untilValid = untilValidAnd (const Nothing)
+import Util
 
 nonNeg :: (Num a, Ord a) => a -> Maybe String
 nonNeg = check "Cannot be negative." (>= 0)
@@ -36,40 +13,42 @@ gr0 :: (Num a, Ord a) => a -> Maybe String
 gr0 = check "Must be greater than zero." (> 0)
 
 main :: IO ()
-main = do
-    port <- runInputT defaultSettings $ untilValidAnd nonNeg do
+main = runInputT defaultSettings do
+    outputStrLn "Enter port:"
+    port <- untilValidAnd nonNeg do
         outputStrLn "Enter port:"
         getInputLineWithInitial "> " ("42069","")
-    wSize <- runInputT defaultSettings $ untilValidAnd gr0 do
+    wSize <- untilValidAnd gr0 do
         outputStrLn "Enter world radius:"
         getInputLineWithInitial "> " ("10","")
-    fillPortion <- runInputT defaultSettings $ untilValidAnd
+    fillPortion <- untilValidAnd
         ( gr0
-        >- check "Cannot be greater than 100 percent." (<= 100)
+        &>- check "Cannot be greater than 100 percent." (<= 100)
         ) do
             outputStrLn "Enter percentage of the map to fill with scatters:"
             getInputLineWithInitial "> " ("50","")
-    scatterHealth <- runInputT defaultSettings $ untilValidAnd gr0 do
+    scatterHealth <- untilValidAnd nonNeg do
         outputStrLn "Enter scatter health:"
         getInputLineWithInitial "> " ("2","")
-    scatterActions <- runInputT defaultSettings $ untilValidAnd gr0 do
+    scatterActions <- untilValidAnd nonNeg do
         outputStrLn "Enter scatter actions:"
+        outputStrLn "(Action points that can be looted from a scatter)"
         getInputLineWithInitial "> " ("1","")
-    startHealth <- runInputT defaultSettings $ untilValidAnd gr0 do
+    startHealth <- untilValidAnd gr0 do
         outputStrLn "Enter starting health:"
         getInputLineWithInitial "> " ("3","")
-    startMaxHealth <- runInputT defaultSettings $ untilValidAnd
+    startMaxHealth <- untilValidAnd
         (check "Cannot be less than starting health." (>= startHealth))
         do
             outputStrLn "Enter starting maximum health:"
             getInputLineWithInitial "> " (show startHealth,"")
-    startActions <- runInputT defaultSettings $ untilValidAnd gr0 do
+    startActions <- untilValidAnd gr0 do
         outputStrLn "Enter starting actions:"
         getInputLineWithInitial "> " ("1","")
-    startRange <- runInputT defaultSettings $ untilValidAnd gr0 do
+    startRange <- untilValidAnd gr0 do
         outputStrLn "Enter starting range:"
         getInputLineWithInitial "> " ("2","")
-    startVision <- runInputT defaultSettings $ untilValidAnd gr0 do
+    startVision <- untilValidAnd gr0 do
         outputStrLn "Enter starting vision distance:"
         getInputLineWithInitial "> " ("3","")
     gen <- getStdGen
@@ -101,4 +80,4 @@ main = do
                 , done = False
                 }
             }
-    runServer port (w :: SeqWorld) conf
+    liftIO $ runServer port (w :: SeqWorld) conf
