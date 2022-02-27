@@ -4,7 +4,6 @@ import GridTactics
 import Relude
 import System.Console.Haskeline
 import System.Random
-import Util
 
 nonNeg :: (Num a, Ord a) => a -> Maybe String
 nonNeg = check "Cannot be negative." (>= 0)

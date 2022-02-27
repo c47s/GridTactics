@@ -41,6 +41,6 @@
 
     *   [x] Make API
 
-    *   [ ] Make server
+    *   [x] Make server
 
     *   [ ] Make client
