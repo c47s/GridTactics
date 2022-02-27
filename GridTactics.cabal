@@ -89,6 +89,7 @@ library
                        SeqWorld
                        WebInstances
                        API
+                       Util
 
 executable Client
   import:              common-options
@@ -106,6 +107,16 @@ executable Server
   main-is:             Server.hs
   build-depends:       GridTactics
   ghc-options:         -main-is Server
+                       -threaded
+                       -rtsopts
+                       -with-rtsopts=-N
+
+executable Main
+  import:              common-options
+  hs-source-dirs:      app
+  main-is:             Main.hs
+  build-depends:       GridTactics
+  ghc-options:         -main-is Main
                        -threaded
                        -rtsopts
                        -with-rtsopts=-N

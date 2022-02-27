@@ -115,10 +115,6 @@ handleEvent s _otherEvent = continue s
 modifyWorld :: (w -> w) -> AppState w -> AppState w
 modifyWorld f s = s {world = f . world $ s}
 
-defaultElem :: a -> [a] -> [a]
-defaultElem x [] = [x]
-defaultElem _ xs = xs
-
 
 
 draw :: (World w) => AppState w -> [Widget Name]
@@ -215,12 +211,6 @@ activateMouseMode = do
   let output = outputIface vty
   when (supportsMode output Mouse) $
     liftIO $ setMode output Mouse True
-
-modifyM :: (Monad m) => (s -> m s) -> StateT s m ()
-modifyM f = do
-    s <- get
-    s' <- lift $ f s
-    put s'
 
 populateWorld :: (World w) => Int -> StateT w Maybe ()
 populateWorld numScatters = do

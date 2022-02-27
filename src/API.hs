@@ -12,7 +12,6 @@ import Mechanics
 import Network.Wai.Handler.Warp
 import Relude
 import Servant
-import Servant.API.Flatten
 import Util
 import WebInstances ()
 
@@ -111,4 +110,4 @@ hAPI conf ref = hActor conf ref
 runServer :: (World w) => Int -> w -> Config -> IO ()
 runServer port initialWorld config = do
     wRef <- newIORef initialWorld
-    run port (serve (flatten api) (hAPI config wRef))
+    run port (serve api (hAPI config wRef))
