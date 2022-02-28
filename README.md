@@ -8,4 +8,4 @@
 
 GridTactics is a game on a square grid for essentially any number of players (probably fewer than 100 but honestly who knows) where the last survivor wins. Get one action point per turn. Save your points, form groups, share resources, make plans, and **betray them** to be the last one standing.
 
-May ruin relationships — use with care.
+May ruin relationships — use with care (and kindness).
