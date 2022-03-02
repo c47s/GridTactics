@@ -125,7 +125,7 @@ draw s = let
     a = lookupActor aID w
     nextA = lookupActor nextAID w
     c = findActor aID w
-    worldTable = renderTable . grid2Table w $ view (vision a) c w
+    worldTable = renderTable . grid2Table $ view (vision a) c w
     queueBox = borderWithLabel (txt "Action Plan")
         (vBox (defaultElem (txtWrap "Nothing Planned (Yet!)")
         . fmap (strWrap . show) . reverse . toList . queue $ a))
@@ -165,7 +165,7 @@ draw s = let
         ]
     rSidebar = queueBox
     centerContent = vBox . fmap hCenter $
-        [ txt ("You are " <> name a)
+        [ txt ("You are " <> aname a)
         , worldTable
         , inventory
         , selectedAct
@@ -178,7 +178,7 @@ draw s = let
         , hLimitPercent sbarWidthPercent . hCenter $ rSidebar
         ]
     playerSwitchScreen = vCenter . vBox . fmap hCenter $
-        [ txt $ "Ready, " <> name nextA <> "?"
+        [ txt $ "Ready, " <> aname nextA <> "?"
         , txt "(y/n)"
         , txt "Press . for next player"
         ]
@@ -188,22 +188,17 @@ draw s = let
             else controlScreen
         ]
 
-grid2Table :: (World w) => w -> [[Square]] -> Table Name
-grid2Table w = table . reverse . fmap (fmap $ renderSquare w)
+grid2Table :: [[Square]] -> Table Name
+grid2Table = table . reverse . fmap (fmap renderSquare)
 
-renderSquare :: (World w) => w -> Square -> Widget Name
-renderSquare = vLimit 2 . hLimit 5 . center . vBox . fmap txt .: sq2Texts
+renderSquare :: Square -> Widget Name
+renderSquare = vLimit 2 . hLimit 5 . center . vBox . fmap txt . sq2Texts
 
 -- Give multiple lines of text.
-sq2Texts :: (World w) => w -> Square -> [Text]
-sq2Texts _ Nothing = [" "," "]
-sq2Texts w (Just (Entity maID hp cont)) =
-    [displayMaybeActorID w maID, show hp <> "/" <> show (hp + hearts (maybeToMonoid cont))]
-
-displayMaybeActorID :: (World w) => w -> Maybe UID -> Text
-displayMaybeActorID _w Nothing = ""
-displayMaybeActorID w (Just aID) = name $ lookupActor aID w
-
+sq2Texts :: Square -> [Text]
+sq2Texts Nothing = [" "," "]
+sq2Texts (Just (Entity _ mname hp cont)) =
+    [fromMaybe "" mname, show hp <> "/" <> show (hp + hearts (maybeToMonoid cont))]
 
 activateMouseMode :: EventM n ()
 activateMouseMode = do
@@ -214,10 +209,10 @@ activateMouseMode = do
 
 populateWorld :: (World w) => Int -> StateT w Maybe ()
 populateWorld numScatters = do
-    replicateM_ numScatters . scatter $ Entity Nothing 2 (Just $ Loot {hearts = 0, actions = 1})
+    replicateM_ numScatters . scatter $ Entity Nothing (Just "Junk") 2 (Just $ Loot {hearts = 0, actions = 1})
     modifyM $ scatterActors ["Matt", "Batt", "Catt", "Datt", "Nahan", "Bahan", "Cahan", "Dahan"]
-        (Entity Nothing 3 (Just $ Loot {hearts = 2, actions = 0}))
-        (Actor {name = "", coords = (0,0), range = 2, vision = 3, queue = empty, done = False})
+        (Entity Nothing Nothing 3 (Just $ Loot {hearts = 2, actions = 0}))
+        (Actor {aname = "", coords = (0,0), range = 2, vision = 3, queue = empty, done = False})
     modify runTurn
 
 main :: IO ()
