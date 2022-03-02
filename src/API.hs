@@ -7,13 +7,14 @@ module API
     , runServer
     ) where
 
-import Control.Monad.Except
-import Mechanics
-import Network.Wai.Handler.Warp
-import Relude
-import Servant
-import Util
-import WebInstances ()
+import           Control.Monad.Except
+import qualified Deque.Lazy as D 
+import           Mechanics
+import           Network.Wai.Handler.Warp
+import           Relude
+import           Servant
+import           Util
+import           WebInstances ()
 
 
 
@@ -25,7 +26,10 @@ type ActorAPI = Capture "id" UID
     )
 type ActorSelfAPI = Get '[JSON] Actor
 type ViewAPI = "view" :> Get '[JSON] Grid
-type ActAPI = "act" :> ReqBody '[JSON] Action :> PostNoContent
+type ActAPI = "act" :>
+        ( ReqBody '[JSON] Action :> PostNoContent
+     :<|> DeleteNoContent
+        )
 type DoneAPI = "done" :> Modify '[JSON] Bool
 
 type ActorsAPI = NamesAPI
@@ -60,9 +64,15 @@ hView aID _conf = doState do
     w <- get
     gets $ view (vision $ lookupActor aID w) (findActor aID w)
 
-hAct :: (World w) => UID -> Config -> IORef w -> Server ActAPI
-hAct aID _conf ref act = stateToIO ref do
+hPostAct :: (World w) => UID -> Config -> IORef w -> Action -> Handler NoContent
+hPostAct aID _conf ref act = stateToIO ref do
     modify $ updateActor (pushAct act) aID
+    return NoContent
+
+hDelAct :: (World w) => UID -> Config -> IORef w -> Handler NoContent
+hDelAct aID _conf ref = stateToIO ref do
+    modify $ flip updateActor aID \a ->
+        a {queue = D.tail $ queue a}
     return NoContent
 
 hGetDone :: (World w) => UID -> Config -> IORef w -> Handler Bool
@@ -78,12 +88,12 @@ hDone aID conf ref = hGetDone aID conf ref
               :<|> hPostDone aID conf ref
 
 hNames :: (World w) => Config -> IORef w -> Server NamesAPI
-hNames _conf = doState $ gets $ \w -> name . flip lookupActor w <$> actors w
+hNames _conf = doState $ gets $ \w -> aname . flip lookupActor w <$> actors w
 
 hNew :: (World w) => Config -> IORef w -> Text -> Handler UID
 hNew conf ref name' = do
     maybeAID <- stateToIO ref . maybeState $
-        scatterActor (pawnTemplate conf) ((actorTemplate conf) {name=name'})
+        scatterActor (pawnTemplate conf) ((actorTemplate conf) {aname=name'})
     hoistEither' . maybeToRight err500 $ maybeAID
 
 hNumDone :: (World w) => Config -> IORef w -> Server NumDoneAPI
@@ -93,7 +103,7 @@ hNumDone _conf = doState $ gets $ sum . map fromEnum
 hActor :: (World w) => Config -> IORef w -> Server ActorAPI
 hActor conf ref aID = hActorSelf aID conf ref
             :<|> hView aID conf ref
-            :<|> hAct aID conf ref
+            :<|> (hPostAct aID conf ref :<|> hDelAct aID conf ref)
             :<|> hDone aID conf ref
 
 hActors :: (World w) => Config -> IORef w -> Server ActorsAPI
