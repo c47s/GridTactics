@@ -32,6 +32,7 @@ import           Control.Monad.Morph
 import           Control.Zipper
 import           Data.Bool.HT (if')
 import           Data.Composition
+import qualified Data.Text as T
 import qualified Deque.Lazy as D
 import           Deque.Lazy (Deque)
 import           Prelude (until)
@@ -46,6 +47,7 @@ import           System.Random.Shuffle
 
 data Entity = Entity
   { actorID :: Maybe UID
+  , ename :: Maybe Text
   , health :: Int
   , contents :: Maybe Loot
   } deriving stock Generic
@@ -56,9 +58,7 @@ type Grid = [[Square]]
 
 passable :: Square -> Bool
 passable Nothing = True -- An empty square is passable.
-passable (Just (Entity (Just _) _ _)) = False -- Entities that have an Actor are always impassable.
-passable (Just (Entity Nothing hp _)) = hp <= 0 -- Entities that have positive health are impassable.
--- Otherwise, entities are passable, are looted when stepped on, and are destroyed when looted.
+passable (Just e) = (not . isJust $ actorID e) && (health e <= 0)
 
 dead :: Square -> Bool
 dead = maybe True $ (<= 0) . health
@@ -72,12 +72,17 @@ grabbable = maybe False $ (/= mempty) . contents
 
 instance Semigroup Entity where
   e <> e' = Entity
-    (asum . (actorID <$>) $ [e, e']) -- Bad bad! When merging 2 Entities with Actors, only one Actor remains. This is why Actor Entities must be impassable.
-    (health e + health e') 
-    (contents e <> contents e')
+    { actorID = asum . (actorID <$>) $ [e, e'] -- Bad bad! When merging 2 Entities with Actors, only one Actor remains. This is why Actor Entities must be impassable.
+    , ename = do 
+      n <- ename e
+      n' <- ename e'
+      return $ T.concat $ T.transpose [n, n']
+    , health = health e + health e'
+    , contents = contents e <> contents e'
+    }
 
 instance Monoid Entity where
-  mempty = Entity Nothing 0 Nothing
+  mempty = Entity Nothing Nothing 0 Nothing
 
 
 
@@ -111,7 +116,7 @@ newtype UID = UID {unwrapUID :: Int}
 
 -- An Actor should always correspond to exactly one Entity in a World
 data Actor = Actor
-  { name :: Text
+  { aname :: Text
   , coords :: Coords
   , range :: Int -- Shooting & throwing distance
   , vision :: Int -- Seeing distance
@@ -246,7 +251,12 @@ class World w where
       register $ a {coords = c}
   
   scatterActors :: [Text] -> Entity -> Actor -> w -> Maybe w
-  scatterActors names e a w = foldl' (>>=) (Just w) [execStateT $ scatterActor e (a {name = thisName}) | thisName <- names]
+  scatterActors names e a w = foldl' (>>=) (Just w)
+    [ execStateT $ scatterActor
+      (e {ename = Just thisName})
+      (a {aname = thisName})
+    | thisName <- names
+    ]
 
   -- Search in a line from the Coords in the given direction until we find what we're looking for or we reach the given max range.
   -- The predicate takes the tuple (this Square, the next Square). This allows stopping before OR upon the desired Square.
@@ -277,12 +287,13 @@ class World w where
 
   -- Update a shot Square.
   hit :: Coords -> w -> w
-  hit c = putLoot (Loot {hearts = 1, actions = 0}) c .
-    updateSquare (fmap \e ->
-      if health e > 0
-      then e {health = health e - 1}
-      else e
-      ) c
+  hit = updateSquare (fmap \e -> if health e > 0
+    then e
+      { health = health e - 1
+      , contents = contents e <> Just Loot {hearts = 1, actions = 0}
+      }
+    else e
+    )
 
   takeLoot :: Coords -> StateT w Maybe Loot
   takeLoot c = do
@@ -310,7 +321,7 @@ class World w where
   
   -- Dump Loot into a Square.
   putLoot :: Loot -> Coords -> w -> w
-  putLoot l = putSquare $ Just (Entity Nothing 0 $ Just l)
+  putLoot l = putSquare $ Just (Entity Nothing Nothing 0 $ Just l)
 
   spendActPts :: Int -> Coords -> w -> Maybe w
   spendActPts n c w = do
