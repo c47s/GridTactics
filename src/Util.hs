@@ -6,6 +6,8 @@ import GHC.Data.Maybe
 import Relude
 import Servant
 import System.Console.Haskeline
+import qualified Data.Sequence as Seq
+import Data.Sequence (Seq((:<|), (:|>)), (<|), (|>), (><))
 
 
 
@@ -86,6 +88,24 @@ hoistEither' = hoistExcept . hoistEither
 defaultElem :: a -> [a] -> [a]
 defaultElem x [] = [x]
 defaultElem _ xs = xs
+
+
+
+-- Sequence
+
+rotate :: Seq a -> Seq a
+rotate Seq.Empty = Seq.Empty
+rotate (x:<|xs) = xs|>x
+
+etator :: Seq a -> Seq a
+etator Seq.Empty = Seq.Empty
+etator (xs:|>x) = x<|xs
+
+rotateTo :: Eq a => a -> Seq a -> Seq a
+rotateTo x = uncurry (flip (><)) . Seq.breakl (== x)
+
+etatorTo :: Eq a => a -> Seq a -> Seq a
+etatorTo x = uncurry (flip (><)) . Seq.breakr (== x)
 
 
 
