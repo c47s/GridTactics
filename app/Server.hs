@@ -5,12 +5,6 @@ import Relude
 import System.Console.Haskeline
 import System.Random
 
-nonNeg :: (Num a, Ord a) => a -> Maybe String
-nonNeg = check "Cannot be negative." (>= 0)
-
-gr0 :: (Num a, Ord a) => a -> Maybe String
-gr0 = check "Must be greater than zero." (> 0)
-
 main :: IO ()
 main = runInputT defaultSettings do
     outputStrLn "Hello!"
