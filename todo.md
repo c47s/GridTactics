@@ -10,7 +10,21 @@
 
     Functions like stateToIO and doState
 
-*   [ ] CHALLENGE: Can I rewrite modifyM using mmorph functions.&#x20;
+*   [ ] Add multiplayer over network
+
+    *   [x] Make API
+
+    *   [x] Make server
+
+    *   [x] Make client
+
+    *   [ ] Make it all work
+
+*   [ ] Add logging to server
+
+*   [ ] Store a history of world states
+
+*   [ ] CHALLENGE: Can I rewrite modifyM using mmorph functions?
 
 *   [ ] Improve UI
 
@@ -36,11 +50,3 @@
     Will probably require adding lens stuff
 
 *   [ ] ~~Add multiplayer between terminals on same machine~~
-
-*   [ ] Add multiplayer over network
-
-    *   [x] Make API
-
-    *   [x] Make server
-
-    *   [ ] Make client
