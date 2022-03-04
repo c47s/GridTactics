@@ -95,13 +95,11 @@ selAction a s = s {currAction = a}
 selUndirAct :: UndirAction -> AppState -> AppState
 selUndirAct a = selAction $ Undir a
 
-selDirAct :: DirAction -> AppState -> EventM Name AppState
-selDirAct a s = do
-    me <- inApp s . self  . currActorID $ s
-    return $ s & case currAction s of
-        Dir _ d -> selAction $ Dir a d
-        Undir _ -> selAction $ Dir a
-            (fromMaybe N . asum . fmap getDir . queue $ me)
+selDirAct :: DirAction -> AppState -> AppState
+selDirAct a s = s & case currAction s of
+    Dir _ d -> selAction $ Dir a d
+    Undir _ -> selAction $ Dir a
+        (fromMaybe N . asum . fmap getDir . queue $ currActor s)
 
 updateFromServer :: AppState -> EventM Name AppState
 updateFromServer s = do
@@ -128,11 +126,11 @@ continue' = continue <=< updateFromServer
 
 handleEvent :: AppState -> BrickEvent Name e -> EventM Name (Next AppState)
 handleEvent s (VtyEvent (EvKey (KChar c) _modifiers)) = case c of
-    'm' -> continue =<< selDirAct Move s
-    's' -> continue =<< selDirAct Shoot s
-    't' -> continue =<< selDirAct (Throw mempty) s
-    'g' -> continue =<< selDirAct Grab s
-    'h' -> continue =<< selDirAct Heal s
+    'm' -> continue $ selDirAct Move s
+    's' -> continue $ selDirAct Shoot s
+    't' -> continue $ selDirAct (Throw mempty) s
+    'g' -> continue $ selDirAct Grab s
+    'h' -> continue $ selDirAct Heal s
     'd' -> continue $ selUndirAct Die s
     'H' -> continue $ selUndirAct HealMe s
     'S' -> continue $ selUndirAct ShootMe s
@@ -172,7 +170,7 @@ handleEvent s (VtyEvent (EvKey (KChar c) _modifiers)) = case c of
         else s
     'q' -> halt s
     _ -> continue s
-handleEvent s (MouseDown (DirActBtn a) _ _ _) = continue =<< selDirAct a s
+handleEvent s (MouseDown (DirActBtn a) _ _ _) = continue $ selDirAct a s
 handleEvent s (MouseDown (UndirActBtn a) _ _ _) = continue $ selUndirAct a s
 handleEvent s (MouseDown (DoneBtn aID) _ _ _) = inApp s do
     thisDone <- getDone aID
