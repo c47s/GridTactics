@@ -70,6 +70,7 @@ main = runInputT defaultSettings do
 
     let scatterE = (Entity
             { actorID = Nothing
+            , ename = Nothing
             , health = scatterHealth
             , contents = Just Loot
                 { actions = scatterActions
@@ -83,6 +84,7 @@ main = runInputT defaultSettings do
     let conf = Config 
             { pawnTemplate = Entity
                 { actorID = Nothing
+                , ename = Nothing
                 , health = startHealth
                 , contents = Just Loot
                     { actions = startActions
@@ -101,4 +103,4 @@ main = runInputT defaultSettings do
 
     outputStrLn "\nStarting Server..."
     liftIO $ runServer port (w :: SeqWorld) conf
-    outputStrLn "Goodbye!"
+    outputStrLn "\nGoodbye!"
