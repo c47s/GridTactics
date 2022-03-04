@@ -31,6 +31,15 @@ untilValidAnd chk getInput = do
 untilValid :: (Read a, MonadIO m) => InputT m (Maybe String) -> InputT m a
 untilValid = untilValidAnd (const Nothing)
 
+untilJust :: MonadIO m => InputT m (Maybe String) -> InputT m String
+untilJust getInput = do
+    ln <- getInput
+    case ln of
+        Nothing -> do
+            outputStrLn "Please enter something."
+            untilJust getInput
+        Just s -> return s
+
 check :: msg -> (a -> Bool) -> Check a msg
 check msg p a = toMaybe (not $ p a) msg
 

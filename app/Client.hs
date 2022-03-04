@@ -1,3 +1,5 @@
+{-# LANGUAGE NoMonomorphismRestriction #-}
+
 module Client (main) where
 
 import           Brick
@@ -11,6 +13,7 @@ import qualified Data.Sequence as Seq
 import qualified Deque.Lazy as D
 import           Graphics.Vty
 import           GridTactics
+import           Network.HTTP.Client
 import           Relude
 import           Relude.Extra.Enum (prev, next)
 import           Relude.Unsafe (fromJust, (!!))
@@ -18,25 +21,26 @@ import qualified Relude.Unsafe as Unsafe (head, tail)
 import           Servant
 import           Servant.API.Flatten
 import           Servant.Client
+import           System.Console.Haskeline
 import           System.Random hiding (next)
 
 
 
-self :: UID -> ReaderT ClientEnv (EventM Name) Actor
-look :: UID -> ReaderT ClientEnv (EventM Name) [[Square]]
-act :: UID -> Action -> ReaderT ClientEnv (EventM Name) NoContent
-delAct :: UID -> ReaderT ClientEnv (EventM Name) NoContent
-getDone :: UID -> ReaderT ClientEnv (EventM Name) Bool
-setDone :: UID -> Bool -> ReaderT ClientEnv (EventM Name) NoContent
-actorNames :: ReaderT ClientEnv (EventM Name) [Text]
-newActor :: Text -> ReaderT ClientEnv (EventM Name) UID
-numDone :: ReaderT ClientEnv (EventM Name) Int
+self :: (MonadIO m) => UID -> ReaderT ClientEnv m Actor
+look :: (MonadIO m) => UID -> ReaderT ClientEnv m [[Square]]
+act :: (MonadIO m) => UID -> Action -> ReaderT ClientEnv m NoContent
+delAct :: (MonadIO m) => UID -> ReaderT ClientEnv m NoContent
+getDone :: (MonadIO m) => UID -> ReaderT ClientEnv m Bool
+setDone :: (MonadIO m) => UID -> Bool -> ReaderT ClientEnv m NoContent
+actorNames :: (MonadIO m) => ReaderT ClientEnv m [Text]
+newActor :: (MonadIO m) => Text -> ReaderT ClientEnv m UID
+numDone :: (MonadIO m) => ReaderT ClientEnv m Int
 self :<|> look :<|> act :<|> delAct :<|> getDone :<|> setDone
     :<|> actorNames :<|> newActor :<|> numDone 
     = hoistClient (flatten api) clientToReader $ client $ flatten api
 
 -- Crashes on any error!!!
-clientToReader :: ClientM a -> ReaderT ClientEnv (EventM Name) a
+clientToReader :: (MonadIO m) => ClientM a -> ReaderT ClientEnv m a
 clientToReader cl = (either (error . show) id <$>) . liftIO . runClientM cl =<< ask
 
 inApp :: AppState -> ReaderT ClientEnv (EventM Name) a -> EventM Name a
@@ -46,7 +50,7 @@ inApp s r = runReaderT r (clientEnv s)
 
 type GTEvent = ()
 
-data Name = UndirActBtn UndirAction | DirActBtn DirAction | DoneBtn
+data Name = UndirActBtn UndirAction | DirActBtn DirAction | DoneBtn UID
     deriving stock (Eq, Ord)
 
 data Resource = Actions | Hearts
@@ -75,7 +79,7 @@ gtApp = App
     { appDraw = draw
     , appChooseCursor = neverShowCursor
     , appHandleEvent = handleEvent
-    , appStartEvent = (activateMouseMode $>)
+    , appStartEvent = startEvent
     , appAttrMap = const $ attrMap defAttr []
     }
 
@@ -115,6 +119,9 @@ updateFromServer s = do
         , currNumDone = currNumDone'
         , currNames = currNames'
         }
+
+startEvent :: AppState -> EventM Name AppState
+startEvent = updateFromServer <=< (activateMouseMode $>)
 
 continue' :: AppState -> EventM Name (Next AppState)
 continue' = continue <=< updateFromServer
@@ -167,7 +174,10 @@ handleEvent s (VtyEvent (EvKey (KChar c) _modifiers)) = case c of
     _ -> continue s
 handleEvent s (MouseDown (DirActBtn a) _ _ _) = continue =<< selDirAct a s
 handleEvent s (MouseDown (UndirActBtn a) _ _ _) = continue $ selUndirAct a s
-handleEvent s (MouseDown DoneBtn _ _ _) = inApp s (setDone (currActorID s) . not $ currDone s) >> continue' s
+handleEvent s (MouseDown (DoneBtn aID) _ _ _) = inApp s do
+    thisDone <- getDone aID
+    _ <- setDone aID $ not thisDone
+    lift $ continue' s
 handleEvent s (VtyEvent (EvKey KEnter _modifiers)) = inApp s (act (currActorID s) (currAction s)) >> continue' s
 handleEvent s (VtyEvent (EvKey KBS _modifiers)) = inApp s (delAct $ currActorID s) >> continue' s
 handleEvent s (VtyEvent (EvKey KEsc _modifiers)) = halt s
@@ -177,7 +187,6 @@ handleEvent s _otherEvent = continue s
 middle :: [a] -> a
 middle xs = xs !! (length xs `div` 2)
 
-
 draw :: AppState -> [Widget Name]
 draw s = let
     me = currActor s
@@ -185,7 +194,7 @@ draw s = let
     nextA = nextActor s
 
     doneBox = border $ vBox
-        [ clickable DoneBtn $ txt $ "You are " <> (if currDone s
+        [ clickable (DoneBtn $ currActorID s) $ txt $ "You are " <> (if currDone s
             then "done"
             else "not done"
             ) <> " planning (Click to toggle)"
@@ -274,7 +283,7 @@ grid2Table = table . reverse . fmap (fmap renderSquare)
 renderSquare :: Square -> Widget Name
 renderSquare = vLimit 2 . hLimit 5 . center . vBox . fmap txt . sq2Texts
 
--- Give multiple lines of text.
+-- A list of lines to display
 sq2Texts :: Square -> [Text]
 sq2Texts Nothing = [" "," "]
 sq2Texts (Just (Entity _ mname hp cont)) =
@@ -289,10 +298,40 @@ activateMouseMode = do
     liftIO $ setMode output Mouse True
 
 main :: IO ()
-main = do
-    _ <- defaultMain gtApp $ AppState
-        { clientEnv = error "clientEnv not yet initialized"
-        , actorIDs = Seq.empty
+main = runInputT defaultSettings do
+    outputStrLn "Hello!"
+    outputStrLn $ "Welcome to the " ++ productName ++ " client."
+
+    outputStrLn ""
+    hostName <- untilJust do
+        outputStrLn "Enter hostname (IP or domain name):"
+        getInputLineWithInitial "> " ("localhost","")
+
+    outputStrLn ""
+    port <- untilValid do
+        outputStrLn "Enter port:"
+        getInputLineWithInitial "> " ("42069","")
+    
+    outputStrLn ""
+    initName <- untilJust do
+        outputStrLn "Enter player name:"
+        getInputLineWithInitial "> " ("Jean","")
+
+    manager <- liftIO $ newManager defaultManagerSettings
+
+    let baseUrl = BaseUrl Http (fromString hostName) port ""
+
+    let env = mkClientEnv manager baseUrl
+
+    outputStrLn ""
+    outputStrLn "Contacting server..."
+    initActorID <- runReaderT (newActor $ fromString initName) env
+
+    outputStrLn ""
+    outputStrLn "Starting UI..."
+    _ <- liftIO $ defaultMain gtApp $ AppState
+        { clientEnv = env
+        , actorIDs = one initActorID
         , currAction = Undir Wait
         , currResource = Actions
         , changingPlayers = True
@@ -303,4 +342,5 @@ main = do
         , currNumDone = error "currNumDone not yet initialized"
         , currNames = error "currNames not yet initialized"
         }
-    pass
+    outputStrLn ""
+    outputStrLn "Goodbye!"

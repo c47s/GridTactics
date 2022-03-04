@@ -112,7 +112,7 @@ instance Monoid Loot where
 {- {- {- ACTOR -} -} -}
 
 newtype UID = UID {unwrapUID :: Int}
-  deriving stock (Eq, Generic)
+  deriving stock (Eq, Ord, Generic)
 
 -- An Actor should always correspond to exactly one Entity in a World
 data Actor = Actor

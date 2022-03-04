@@ -28,6 +28,7 @@ common common-options
                      , ghc
                      , haskeline
                      , http-api-data
+                     , http-client
                      , mmorph
                      , mtl
                      , random
