@@ -21,7 +21,7 @@ untilValidAnd chk getInput = do
     case readMaybe =<< ln of
         Nothing -> do
             outputStrLn "Invalid input."
-            untilValid getInput
+            untilValidAnd chk getInput
         Just a -> case chk a of
             Just msg -> do
                 outputStrLn msg
