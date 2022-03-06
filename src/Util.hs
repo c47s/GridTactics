@@ -78,8 +78,6 @@ stateToIO ref s = liftIO do
     return $ evalState s before
 
 -- stateToIO, but flipped, to facilitate eta-reduced functions like
--- floop :: (MonadIO io) => IORef s -> io a
--- floop = doState do ...
 doState :: (MonadIO io) => State s a -> IORef s -> io a
 doState = flip stateToIO
 

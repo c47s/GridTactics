@@ -29,7 +29,7 @@ instance AutoDequeJSON UID
 instance ToHttpApiData UID where
    toUrlPiece = showTextData . unwrapUID
 instance FromHttpApiData UID where
-   parseUrlPiece = fmap UID . parseBoundedTextData
+   parseUrlPiece = fmap UID . readTextData
 
 instance ToJSON Actor
 instance FromJSON Actor
