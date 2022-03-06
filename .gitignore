@@ -15,6 +15,7 @@ cabal-dev
 .virtualenv
 .hsenv
 .hpc
+*.tix
 .cabal-sandbox/
 cabal.sandbox.config
 cabal.config
@@ -50,7 +51,7 @@ tags
 .dir-locals.el
 TAGS
 
-# other
+# MacOS
 .DS_Store
 
 # User specific
