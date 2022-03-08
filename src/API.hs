@@ -93,7 +93,7 @@ hNames _conf = doState $ gets $ \w -> aname . flip lookupActor w <$> actors w
 hNew :: (World w) => Config -> IORef w -> Text -> Handler UID
 hNew conf ref name' = do
     maybeAID <- stateToIO ref . maybeState $
-        scatterActor (pawnTemplate conf) ((actorTemplate conf) {aname=name'})
+        scatterActor ((pawnTemplate conf) {ename=Just name'}) ((actorTemplate conf) {aname=name'})
     hoistEither' . maybeToRight err500 $ maybeAID
 
 hNumDone :: (World w) => Config -> IORef w -> Server NumDoneAPI
