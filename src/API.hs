@@ -81,6 +81,10 @@ hGetDone aID _conf = doState $ gets $ done . lookupActor aID
 hPostDone :: (World w) => UID -> Config -> IORef w -> Bool -> Handler NoContent
 hPostDone aID _conf ref isDone = stateToIO ref do
     modify $ updateActor (\a -> a {done = isDone}) aID
+    nDone <- gets numDone
+    nActors <- gets (length . actors)
+    when (nActors > 0 && nDone == nActors) $
+        modify runTurn
     return NoContent
 
 hDone :: (World w) => UID -> Config -> IORef w -> Server DoneAPI
@@ -97,8 +101,7 @@ hNew conf ref name' = do
     hoistEither' . maybeToRight err500 $ maybeAID
 
 hNumDone :: (World w) => Config -> IORef w -> Server NumDoneAPI
-hNumDone _conf = doState $ gets $ sum . map fromEnum
-    . \w -> done . flip lookupActor w <$> actors w
+hNumDone _conf = doState $ gets numDone
 
 hActor :: (World w) => Config -> IORef w -> Server ActorAPI
 hActor conf ref aID = hActorSelf aID conf ref

@@ -230,6 +230,10 @@ class World w where
   actor :: w -> Entity -> Maybe Actor
   actor w e = flip lookupActor w <$> actorID e
 
+  numDone :: w -> Int
+  numDone = sum . map fromEnum
+    . \w -> done . flip lookupActor w <$> actors w
+
   -- Get a view of the World with given radius centered at the given Coords.
   view :: Int -> Coords -> w -> Grid
   view r c w = (`getSquare` w) <<$>> ([[bimap (+ x) (+ y) c | x <- [- r .. r]] | y <- [- r .. r]])
@@ -416,3 +420,4 @@ class World w where
     let queuesEmpty w = all (D.null . queue . flip lookupActor w) . actors $ w
     modify $ until queuesEmpty runRound
     modify . giveAllLoot $ Loot {hearts = 0, actions = 1}
+    modify $ foldr (.) id $ (updateActor \a -> a {done = False}) <$> everyone
