@@ -24,21 +24,29 @@ type ActorAPI = Capture "id" UID
     :<|> ActAPI
     :<|> DoneAPI
     )
+
 type ActorSelfAPI = Get '[JSON] Actor
+               :<|> DeleteNoContent
+
 type ViewAPI = "view" :> Get '[JSON] Grid
+
 type ActAPI = "act" :>
         ( ReqBody '[JSON] Action :> PostNoContent
      :<|> DeleteNoContent
         )
+
 type DoneAPI = "done" :> Modify '[JSON] Bool
 
 type ActorsAPI = NamesAPI
             :<|> NewAPI
             :<|> NumDoneAPI
+
 type NamesAPI = "names" :> Get '[JSON] [Text]
+
 type NewAPI = "new"
     :> ReqBody '[JSON] Text -- Provide a name
     :> Post '[JSON] UID
+
 type NumDoneAPI = "done" :> Get '[JSON] Int
 
 type API = "actor"  :> ActorAPI
@@ -57,7 +65,16 @@ data Config = Config
 
 
 hActorSelf :: (World w) => UID -> Config -> IORef w -> Server ActorSelfAPI
-hActorSelf aID _conf = doState $ gets $ lookupActor aID
+hActorSelf aID conf ref = hGetActor aID conf ref
+        :<|> hDelActor aID conf ref
+
+hGetActor :: (World w) => UID -> Config -> IORef w -> Handler Actor
+hGetActor aID _conf = doState $ gets $ lookupActor aID
+
+hDelActor :: (World w) => UID -> Config -> IORef w -> Handler NoContent
+hDelActor aID _conf = doState do
+    modify $ delActor aID
+    return NoContent
 
 hView :: (World w) => UID -> Config -> IORef w -> Server ViewAPI
 hView aID _conf = doState do

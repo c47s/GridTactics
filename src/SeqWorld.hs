@@ -60,6 +60,8 @@ instance World SeqWorld where
     modify \w -> w {actors' = IM.insert aID a $ actors' w}
     return $ UID aID
 
+  unaddActor (UID aID) w = w {actors' = IM.delete aID $ actors' w}
+
   updateSquare f c w = (\w' -> w' {empties' = (
     if passable $ getSquare c w'
       then Set.insert

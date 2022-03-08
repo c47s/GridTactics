@@ -209,6 +209,7 @@ class World w where
   lookupActor :: UID -> w -> Actor
   updateActor :: (Actor -> Actor) -> UID -> w -> w
   addActor :: Actor -> State w UID -- Register an Actor WITHOUT assigning it to its square. Only exists to be implemented by World instances. Use register instead.
+  unaddActor :: UID -> w -> w -- Delete an Actor from actors. Only exists to be implemented by World instances. Use delActor instead.
   updateSquare :: (Square -> Square) -> Coords -> w -> w
 
   register :: Actor -> StateT w Maybe UID -- Register this Actor in the World.
@@ -226,6 +227,9 @@ class World w where
 
   chActorPos :: Coords -> UID -> w -> w -- Point the Actor to a different Square
   chActorPos c = updateActor \a -> a {coords = c}
+
+  delActor :: UID -> w -> w
+  delActor aID w = unaddActor aID . updateSquare (const Nothing) (findActor aID w) $ w
 
   actor :: w -> Entity -> Maybe Actor
   actor w e = flip lookupActor w <$> actorID e

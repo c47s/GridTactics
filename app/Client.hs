@@ -86,6 +86,11 @@ startEvent = updateFromServer <=< (activateMouseMode $>)
 continue' :: AppState -> EventM Name (Next AppState)
 continue' = continue <=< updateFromServer
 
+quit :: AppState -> EventM Name (Next AppState)
+quit s = do
+    traverse_ (inApp s <$> delActor) (actorIDs s)
+    halt s
+
 handleEvent :: AppState -> BrickEvent Name e -> EventM Name (Next AppState)
 handleEvent s (VtyEvent (EvKey (KChar c) _modifiers)) = case c of
     'm' -> continue $ selDirAct Move s
@@ -130,7 +135,7 @@ handleEvent s (VtyEvent (EvKey (KChar c) _modifiers)) = case c of
                , actorIDs = rotateTo (currActorID s) $ actorIDs s
                }
         else s
-    'q' -> halt s
+    'q' -> quit s
     _ -> continue s
 handleEvent s (MouseDown (DirActBtn a) _ _ _) = continue $ selDirAct a s
 handleEvent s (MouseDown (UndirActBtn a) _ _ _) = continue $ selUndirAct a s
@@ -140,7 +145,7 @@ handleEvent s (MouseDown (DoneBtn aID) _ _ _) = inApp s do
     lift $ continue' s
 handleEvent s (VtyEvent (EvKey KEnter _modifiers)) = inApp s (act (currActorID s) (currAction s)) >> continue' s
 handleEvent s (VtyEvent (EvKey KBS _modifiers)) = inApp s (delAct $ currActorID s) >> continue' s
-handleEvent s (VtyEvent (EvKey KEsc _modifiers)) = halt s
+handleEvent s (VtyEvent (EvKey KEsc _modifiers)) = quit s
 handleEvent s _otherEvent = continue s
 
 
