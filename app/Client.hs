@@ -26,9 +26,9 @@ getDone :: (MonadIO m) => UID -> ReaderT ClientEnv m Bool
 setDone :: (MonadIO m) => UID -> Bool -> ReaderT ClientEnv m NoContent
 actorNames :: (MonadIO m) => ReaderT ClientEnv m [Text]
 newActor :: (MonadIO m) => Text -> ReaderT ClientEnv m UID
-numDone :: (MonadIO m) => ReaderT ClientEnv m Int
-self :<|> look :<|> act :<|> delAct :<|> getDone :<|> setDone
-    :<|> actorNames :<|> newActor :<|> numDone 
+getNumDone :: (MonadIO m) => ReaderT ClientEnv m Int
+getActor :<|> delActor :<|> look :<|> act :<|> delAct :<|> getDone :<|> setDone
+    :<|> actorNames :<|> newActor :<|> getNumDone 
     = hoistClient (flatten api) clientToReader $ client $ flatten api
 
 -- Crashes on any error!!!
@@ -65,11 +65,11 @@ selDirAct a s = s & case currAction s of
 
 updateFromServer :: AppState -> EventM Name AppState
 updateFromServer s = do
-    currActor' <- inApp s $ self    $ currActorID s
-    nextActor' <- inApp s $ self    $ nextActorID s
+    currActor' <- inApp s $ getActor    $ currActorID s
+    nextActor' <- inApp s $ getActor    $ nextActorID s
     currView'  <- inApp s $ look    $ currActorID s
     currDone'  <- inApp s $ getDone $ currActorID s
-    currNumDone' <- inApp s numDone
+    currNumDone' <- inApp s getNumDone
     currNames' <- inApp s actorNames
     return s
         { currActor = currActor'
