@@ -2,15 +2,13 @@
 
 *   [x] Add actor-switching to facilitate multiplayer
 
-*   [ ] Refactor Loot as a Map from Resources to Ints
-
 *   [x] Break UI into smaller functions
 
 *   [x] Move general, reusable utility functions into a separate file
 
     Functions like stateToIO and doState
 
-*   [ ] Add multiplayer over network
+*   [x] Add multiplayer over network
 
     *   [x] Make API
 
@@ -18,7 +16,29 @@
 
     *   [x] Make client
 
-    *   [ ] Make it all work
+    *   [x] Make it all work
+
+*   [ ] Delete Main
+
+*   [ ] Create documentation
+
+    *   [ ] Client
+
+    *   [ ] Server
+
+    *   [ ] API
+
+    *   [ ] GridTactics
+
+    *   [ ] Mechanics
+
+    *   [ ] SeqWorld
+
+    *   [ ] Util
+
+    *   [ ] WebInstances
+
+*   [ ] Refactor Loot as a Map from Resources to Ints
 
 *   [ ] Add logging to server
 
