@@ -19,6 +19,9 @@
     *   [x] Make it all work
 
 *   [ ] Delete Main
+    Pull out any useful code first (there probably is none since Client was originally a copy of Main)
+
+*   [ ] Replace `show`-based UI components with specialized widgets
 
 *   [ ] Create documentation
 
@@ -66,7 +69,7 @@
 
         *   [x] Allow deleting last queue item
 
-*   [ ] Add Forms to UI\
-    Will probably require adding lens stuff
+    *   [ ] Add Forms to UI\
+        Will probably require adding lens stuff
 
 *   [ ] ~~Add multiplayer between terminals on same machine~~
