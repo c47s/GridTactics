@@ -1,13 +1,18 @@
 module Util where
 
-import Control.Monad.Except
-import Data.Maybe.HT
-import GHC.Data.Maybe
-import Relude
-import Servant
-import System.Console.Haskeline
+import           Control.Monad.Except
+import           Data.Bool.HT ((?:))
+import           Data.Composition
+import           Data.Maybe.HT
 import qualified Data.Sequence as Seq
-import Data.Sequence (Seq((:<|), (:|>)), (<|), (|>), (><))
+import           Data.Sequence (Seq((:<|), (:|>)), (<|), (|>), (><))
+import qualified Data.Text as T
+import           GHC.Data.Maybe
+import           Prelude ((!!))
+import           Relude hiding ((?:))
+import           Servant
+import           System.Console.Haskeline
+import           System.Random
 
 
 
@@ -101,6 +106,10 @@ hoistEither' = hoistExcept . hoistEither
 defaultElem :: a -> [a] -> [a]
 defaultElem x [] = [x]
 defaultElem _ xs = xs
+
+-- Unsafe!
+middle :: [a] -> a
+middle xs = xs !! (length xs `div` 2)
 
 
 
