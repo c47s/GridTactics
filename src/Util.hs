@@ -113,6 +113,25 @@ middle xs = xs !! (length xs `div` 2)
 
 
 
+-- Random
+
+uniforms :: (RandomGen g, Uniform a) => g -> [a]
+uniforms = unfoldr (Just . uniform)
+
+mixText :: (RandomGen g) => g -> Text -> Text -> Text
+mixText gen = fromString .
+    zipWith (?:) (uniforms gen)
+    .: T.zip
+
+
+
+-- Text
+
+sumText :: (Num n) => Text -> n
+sumText = sum . fmap (fromIntegral . fromEnum) . toString
+
+
+
 -- Sequence
 
 rotate :: Seq a -> Seq a

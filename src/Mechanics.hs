@@ -32,7 +32,6 @@ import           Control.Monad.Morph
 import           Control.Zipper
 import           Data.Bool.HT (if')
 import           Data.Composition
-import qualified Data.Text as T
 import qualified Deque.Lazy as D
 import           Deque.Lazy (Deque)
 import           Prelude (until)
@@ -40,6 +39,7 @@ import           Relude
 import           Relude.Unsafe ((!!))
 import           System.Random
 import           System.Random.Shuffle
+import           Util
 
 
 
@@ -50,7 +50,7 @@ data Entity = Entity
   , ename :: Maybe Text
   , health :: Int
   , contents :: Maybe Loot
-  } deriving stock Generic
+  } deriving stock (Show, Generic)
 
 type Square = Maybe Entity
 
@@ -72,11 +72,17 @@ grabbable = maybe False $ (/= mempty) . contents
 
 instance Semigroup Entity where
   e <> e' = Entity
-    { actorID = asum . (actorID <$>) $ [e, e'] -- Bad bad! When merging 2 Entities with Actors, only one Actor remains. This is why Actor Entities must be impassable.
-    , ename = do 
-      n <- ename e
-      n' <- ename e'
-      return $ T.concat $ T.transpose [n, n']
+    { actorID = asum [actorID e, actorID e'] -- Bad bad! When merging 2 Entities with Actors, only one Actor remains. This is why Actor Entities must be impassable.
+    , ename = asum [
+      do
+        n <- ename e
+        n' <- ename e'
+        return $ mixText -- Merging 2 named Entities? This'll be fun!
+          (mkStdGen . sumText $ show e <> show e') -- Make a random gen based on details of these Entities
+          n n'
+      , ename e
+      , ename e'
+      ]
     , health = health e + health e'
     , contents = contents e <> contents e'
     }
@@ -112,7 +118,7 @@ instance Monoid Loot where
 {- {- {- ACTOR -} -} -}
 
 newtype UID = UID {unwrapUID :: Int}
-  deriving stock (Eq, Ord, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
 
 -- An Actor should always correspond to exactly one Entity in a World
 data Actor = Actor
