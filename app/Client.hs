@@ -42,7 +42,7 @@ inApp s r = runReaderT r (clientEnv s)
 
 
 
-data GTEvent = Tick Int
+newtype GTEvent = Tick Int
 
 gtApp :: App AppState GTEvent Name
 gtApp = App
@@ -93,6 +93,12 @@ quit s = do
     traverse_ (inApp s <$> delActor) (actorIDs s)
     halt s
 
+toggleDone :: UID -> AppState -> EventM Name (Next AppState)
+toggleDone aID s = inApp s do
+    thisDone <- getDone aID
+    _ <- setDone aID $ not thisDone
+    lift $ continue' s
+
 handleEvent :: AppState -> BrickEvent Name GTEvent -> EventM Name (Next AppState)
 handleEvent s (VtyEvent (EvKey (KChar c) _modifiers)) = case c of
     'm' -> continue $ selDirAct Move s
@@ -100,7 +106,6 @@ handleEvent s (VtyEvent (EvKey (KChar c) _modifiers)) = case c of
     't' -> continue $ selDirAct (Throw mempty) s
     'g' -> continue $ selDirAct Grab s
     'h' -> continue $ selDirAct Heal s
-    'd' -> continue $ selUndirAct Die s
     'H' -> continue $ selUndirAct HealMe s
     'S' -> continue $ selUndirAct ShootMe s
     'w' -> continue $ selUndirAct Wait s
@@ -137,14 +142,12 @@ handleEvent s (VtyEvent (EvKey (KChar c) _modifiers)) = case c of
                , actorIDs = rotateTo (currActorID s) $ actorIDs s
                }
         else s
+    'd' -> toggleDone (currActorID s) s
     'q' -> quit s
     _ -> continue s
 handleEvent s (MouseDown (DirActBtn a) _ _ _) = continue $ selDirAct a s
 handleEvent s (MouseDown (UndirActBtn a) _ _ _) = continue $ selUndirAct a s
-handleEvent s (MouseDown (DoneBtn aID) _ _ _) = inApp s do
-    thisDone <- getDone aID
-    _ <- setDone aID $ not thisDone
-    lift $ continue' s
+handleEvent s (MouseDown (DoneBtn aID) _ _ _) = toggleDone aID s
 handleEvent s (VtyEvent (EvKey KEnter _modifiers)) = inApp s (act (currActorID s) (currAction s)) >> continue' s
 handleEvent s (VtyEvent (EvKey KBS _modifiers)) = inApp s (delAct $ currActorID s) >> continue' s
 handleEvent s (VtyEvent (EvKey KEsc _modifiers)) = quit s

@@ -76,11 +76,10 @@ draw s = let
     mySq = middle . middle $ currView s
     nextA = nextActor s
 
-    doneBox = border $ vBox
-        [ clickable (DoneBtn $ currActorID s) $ txtWrap $ "You are " <> (if currDone s
-            then "done"
-            else "not done"
-            ) <> " planning\n(Click to toggle)"
+    doneBox = joinBorders $ border $ vBox
+        [ clickable (DoneBtn $ currActorID s) $ txtWrap if currDone s
+            then "Waiting for other players to finish..."
+            else "d: End Turn"
         , hBorder
         , txtWrap $ show (currNumDone s) <> "/" <> show (length $ currNames s)
             <> " players are done"
