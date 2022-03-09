@@ -3,7 +3,9 @@
 module Client (main) where
 
 import Brick
+import Brick.BChan
 import Brick.Main
+import Control.Concurrent (forkIO, threadDelay)
 import Control.Monad.Except
 import Graphics.Vty
 import GridTactics hiding (World(..))
@@ -40,7 +42,7 @@ inApp s r = runReaderT r (clientEnv s)
 
 
 
-type GTEvent = ()
+data GTEvent = Tick Int
 
 gtApp :: App AppState GTEvent Name
 gtApp = App
@@ -91,7 +93,7 @@ quit s = do
     traverse_ (inApp s <$> delActor) (actorIDs s)
     halt s
 
-handleEvent :: AppState -> BrickEvent Name e -> EventM Name (Next AppState)
+handleEvent :: AppState -> BrickEvent Name GTEvent -> EventM Name (Next AppState)
 handleEvent s (VtyEvent (EvKey (KChar c) _modifiers)) = case c of
     'm' -> continue $ selDirAct Move s
     's' -> continue $ selDirAct Shoot s
@@ -146,6 +148,7 @@ handleEvent s (MouseDown (DoneBtn aID) _ _ _) = inApp s do
 handleEvent s (VtyEvent (EvKey KEnter _modifiers)) = inApp s (act (currActorID s) (currAction s)) >> continue' s
 handleEvent s (VtyEvent (EvKey KBS _modifiers)) = inApp s (delAct $ currActorID s) >> continue' s
 handleEvent s (VtyEvent (EvKey KEsc _modifiers)) = quit s
+handleEvent s (AppEvent (Tick n)) = s & if currDone s || n `mod` 5 == 0 then continue' else continue
 handleEvent s _otherEvent = continue s
 
 
@@ -187,20 +190,37 @@ main = runInputT defaultSettings do
     outputStrLn "Contacting server..."
     initActorID <- runReaderT (newActor $ fromString initName) env
 
+    let initialState = AppState
+            { clientEnv = env
+            , actorIDs = one initActorID
+            , currAction = Undir Wait
+            , currResource = Actions
+            , changingPlayers = True
+            , currActor = error "currActor not yet initialized"
+            , nextActor = error "nextActor not yet initialized"
+            , currView = error "currView not yet initialized"
+            , currDone = error "currDone not yet initialized"
+            , currNumDone = error "currNumDone not yet initialized"
+            , currNames = error "currNames not yet initialized"
+            }
+
     outputStrLn ""
     outputStrLn "Starting UI..."
-    _ <- liftIO $ defaultMain gtApp $ AppState
-        { clientEnv = env
-        , actorIDs = one initActorID
-        , currAction = Undir Wait
-        , currResource = Actions
-        , changingPlayers = True
-        , currActor = error "currActor not yet initialized"
-        , nextActor = error "nextActor not yet initialized"
-        , currView = error "currView not yet initialized"
-        , currDone = error "currDone not yet initialized"
-        , currNumDone = error "currNumDone not yet initialized"
-        , currNames = error "currNames not yet initialized"
-        }
+
+    chan <- liftIO $ newBChan 10
+    tickCounter <- newIORef 1
+
+    _ <- liftIO $ forkIO $ void $ infinitely $ do
+        n <- readIORef tickCounter
+        writeIORef tickCounter (n + 1)
+
+        writeBChan chan (Tick n)
+        threadDelay 1000000
+    
+    let buildVty = mkVty defaultConfig
+    initialVty <- liftIO buildVty
+
+    _ <- liftIO $ customMain initialVty buildVty (Just chan) gtApp initialState
+
     outputStrLn ""
     outputStrLn "Goodbye!"
