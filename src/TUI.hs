@@ -74,7 +74,7 @@ nempty2Text xs
     | otherwise      = (T.concat . intersperse ", " $ tail xs) <> " and " <> head xs
 
 loot2Text :: Loot -> Text
-loot2Text = list2Text . toList . Map.mapWithKey res2Text . unLoot
+loot2Text = list2Text . toList . Map.mapWithKey res2Text . Map.filter (> 0) . unLoot
 
 dir2Text :: Mechanics.Direction -> Text
 dir2Text N = "↑"
