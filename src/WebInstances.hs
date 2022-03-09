@@ -3,7 +3,7 @@
 
 module WebInstances () where
 
-import Data.Aeson (ToJSON, FromJSON)
+import Data.Aeson (FromJSONKey, ToJSON, FromJSON, ToJSONKey)
 import Deque.Lazy (Deque)
 import Mechanics
 import Relude
@@ -18,6 +18,12 @@ instance (AutoDequeJSON a, FromJSON a) => FromJSON (Deque a)
 instance ToJSON Entity
 instance FromJSON Entity
 instance AutoDequeJSON Entity
+
+instance ToJSON Resource
+instance ToJSONKey Resource
+instance FromJSONKey Resource
+instance FromJSON Resource
+instance AutoDequeJSON Resource
 
 instance ToJSON Loot
 instance FromJSON Loot

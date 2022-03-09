@@ -110,10 +110,10 @@ handleEvent s (VtyEvent (EvKey (KChar c) _modifiers)) = case c of
     'S' -> continue $ selUndirAct ShootMe s
     'w' -> continue $ selUndirAct Wait s
     ((`elem` ['=','+']) -> True) -> continue case currAction s of
-        Dir (Throw l) d -> s {currAction = Dir (Throw (l <> singloot (currResource s))) d}
+        Dir (Throw l) d -> s {currAction = Dir (Throw (l <> singloot (currResource s) 1)) d}
         _ -> s
     '-' -> continue case currAction s of
-        Dir (Throw l) d -> s {currAction = Dir (Throw $ maybeToMonoid (l `without` singloot (currResource s))) d}
+        Dir (Throw l) d -> s {currAction = Dir (Throw $ maybeToMonoid (l `without` singloot (currResource s) 1)) d}
         _ -> s
     '}' -> continue $ s {currResource = next . currResource $ s}
     ']' -> continue case currAction s of

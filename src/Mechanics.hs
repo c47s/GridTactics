@@ -7,7 +7,10 @@ module Mechanics
     , hittable
     , grabbable
 
+    , Resource (..)
+    , res
     , Loot (..)
+    , singloot
     , contains
     , without
 
@@ -32,6 +35,7 @@ import           Control.Monad.Morph
 import           Control.Zipper
 import           Data.Bool.HT (if')
 import           Data.Composition
+import qualified Data.Map.Strict as Map
 import qualified Deque.Lazy as D
 import           Deque.Lazy (Deque)
 import           Prelude (until)
@@ -49,7 +53,7 @@ data Entity = Entity
   { actorID :: Maybe UID
   , ename :: Maybe Text
   , health :: Int
-  , contents :: Maybe Loot
+  , contents :: Loot
   } deriving stock (Show, Generic)
 
 type Square = Maybe Entity
@@ -88,30 +92,40 @@ instance Semigroup Entity where
     }
 
 instance Monoid Entity where
-  mempty = Entity Nothing Nothing 0 Nothing
+  mempty = Entity Nothing Nothing 0 mempty
 
 
 
 {- {- {- LOOT -} -} -}
 
-data Loot = Loot
-  { hearts :: Int
-  , actions :: Int
-  } deriving stock (Eq, Ord, Show, Generic)
+data Resource = Actions | Hearts
+    deriving stock (Eq, Ord, Enum, Bounded, Show, Generic)
+
+res :: Resource -> Loot -> Int
+res r = Map.findWithDefault 0 r . unLoot
+
+newtype Loot = Loot {unLoot :: Map Resource Int}
+    deriving newtype (Eq, Ord, Show)
+    deriving stock Generic
+
+singloot :: Resource -> Int -> Loot
+singloot = Loot .: Map.singleton
 
 contains :: Loot -> Loot -> Bool
-l `contains` l' = hearts l >= hearts l' && actions l >= actions l'
+contains = isJust .: without
 
 without :: Loot -> Loot -> Maybe Loot
-l `without` l' = do
-  guard $ l `contains` l'
-  return $ Loot (hearts l - hearts l') (actions l - actions l')
+l1 `without` l2 = do
+  let l1' = Loot $ (Map.differenceWith minusGt0 `on` unLoot) l1 l2
+  guard $ (not . Map.null . unLoot $ l1') || l1 == l2
+  return l1'
+
 
 instance Semigroup Loot where
-  l <> l' = Loot (hearts l + hearts l') (actions l + actions l')
+  (<>) = Loot .: Map.unionWith (+) `on` unLoot
 
 instance Monoid Loot where
-  mempty = Loot 0 0
+  mempty = Loot mempty
 
 
 
@@ -304,7 +318,7 @@ class World w where
   hit = updateSquare (fmap \e -> if health e > 0
     then e
       { health = health e - 1
-      , contents = contents e <> Just Loot {hearts = 1, actions = 0}
+      , contents = contents e <> singloot Hearts 1
       }
     else e
     )
@@ -313,9 +327,8 @@ class World w where
   takeLoot c = do
     s <- gets $ getSquare c
     e <- lift s
-    cont <- lift $ contents e
-    modify $ updateSquare (fmap \e' -> e' {contents = Nothing}) c
-    return cont
+    modify $ updateSquare (fmap \e' -> e' {contents = mempty}) c
+    return $ contents e
   
   grab :: Coords -> Coords -> w -> Maybe w
   grab grabbee grabber w = do
@@ -330,21 +343,21 @@ class World w where
   heal :: Coords -> w -> Maybe w
   heal c w = do
       e <- getSquare c w
-      cont' <- contents e >>= (`without` Loot {actions = 0, hearts = 1})
-      return $ updateSquare (const . Just $ e {contents = Just cont', health = health e + 1}) c w
+      cont' <- contents e `without` singloot Hearts 1
+      return $ updateSquare (const . Just $ e {contents = cont', health = health e + 1}) c w
   
   -- Dump Loot into a Square.
   putLoot :: Loot -> Coords -> w -> w
-  putLoot l = putSquare $ Just (Entity Nothing Nothing 0 $ Just l)
+  putLoot l = putSquare $ Just (Entity Nothing Nothing 0 l)
 
   spendActPts :: Int -> Coords -> w -> Maybe w
   spendActPts n c w = do
     let c' = getSquare c w
     me <- c'
-    cont <- contents me
-    let actions' = actions cont - n
+    let cont = contents me
+    let actions' = res Actions cont - n
     guard $ actions' >= 0
-    return $ updateSquare (fmap \e -> e {contents = Just $ cont {actions = actions'}}) c w
+    return $ updateSquare (fmap \e -> e {contents = singloot Actions actions' <> cont}) c w
 
   spendFor :: Action -> Coords -> w -> Maybe w
   spendFor = spendActPts . cost
@@ -353,7 +366,7 @@ class World w where
   doAct a c w = do
     let s = getSquare c w
     me <- s
-    cont <- contents me
+    let cont = contents me
     act <- actor w me
     case a of
       Dir a' d -> case a' of
@@ -371,19 +384,15 @@ class World w where
           cont' <- cont `without` l
           return .
             putLoot l throwee $
-            updateSquare (fmap \e -> e {contents = Just cont' }) c w
+            updateSquare (fmap \e -> e {contents = cont' }) c w
         Grab -> do
           let grabbee = step d c
           grab grabbee c w
         Heal -> heal (step d c) w
       Undir Die -> return
-        -- . putLoot (Loot {hearts = health me, actions = 0}) c
         $ updateSquare (fmap \e -> e
           { health = 0
-          , contents = Just (Loot
-            { hearts = 0
-            , actions = cost (Undir Die)
-            })
+          , contents = singloot Actions $ cost (Undir Die)
           }
           ) c w
       Undir HealMe -> heal c w
@@ -423,5 +432,5 @@ class World w where
     let runRound = foldr (.) id $ popAct <$> shuffle' everyone (length everyone) gen -- :: w -> w
     let queuesEmpty w = all (D.null . queue . flip lookupActor w) . actors $ w
     modify $ until queuesEmpty runRound
-    modify . giveAllLoot $ Loot {hearts = 0, actions = 1}
+    modify . giveAllLoot $ singloot Actions 1
     modify $ foldr (.) id $ (updateActor \a -> a {done = False}) <$> everyone

@@ -115,6 +115,16 @@ middle xs = xs !! (length xs `div` 2)
 
 
 
+-- Math
+
+minusGt0 :: (Ord n, Num n) => n -> n -> Maybe n
+minusGt0 x y = do
+    let z = x - y
+    guard $ z > 0
+    return z
+
+
+
 -- Random
 
 uniforms :: (RandomGen g, Uniform a) => g -> [a]

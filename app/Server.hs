@@ -72,10 +72,7 @@ main = runInputT defaultSettings do
             { actorID = Nothing
             , ename = Nothing
             , health = scatterHealth
-            , contents = Just Loot
-                { actions = scatterActions
-                , hearts = 0
-                }
+            , contents = singloot Actions scatterActions
             })
 
     let w = fillFraction (fillPortion / 100 :: Double) scatterE
@@ -86,10 +83,8 @@ main = runInputT defaultSettings do
                 { actorID = Nothing
                 , ename = Nothing
                 , health = startHealth
-                , contents = Just Loot
-                    { actions = startActions
-                    , hearts = startMaxHealth - startMaxHealth
-                    }
+                , contents = singloot Actions startActions
+                          <> singloot Hearts (startMaxHealth - startHealth)
                 }
             , actorTemplate = Actor
                 { aname = "TEMPLATE"

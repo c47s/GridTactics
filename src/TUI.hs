@@ -13,21 +13,14 @@ import           Brick.Widgets.Border
 import           Brick.Widgets.Center
 import           Brick.Widgets.Core
 import           Brick.Widgets.Table
+import qualified Data.Map.Strict as Map
 import           Data.Maybe (fromJust)
 import qualified Data.Sequence as Seq
+import qualified Data.Text as T
 import           Mechanics
 import           Relude
 import           Servant.Client
 import           Util
-
-data Resource = Actions | Hearts
-    deriving stock (Eq, Enum, Bounded, Show)
-
-singloot :: Resource -> Loot
-singloot Actions = Loot {hearts = 0, actions = 1}
-singloot Hearts = Loot {hearts = 1, actions = 0}
-
-
 
 data AppState = AppState
     { clientEnv :: ClientEnv
@@ -66,9 +59,39 @@ renderSquare = vLimit 2 . hLimit 5 . center . vBox . fmap txt . sq2Texts
 sq2Texts :: Square -> [Text]
 sq2Texts Nothing = [" "," "]
 sq2Texts (Just (Entity _ mname hp cont)) =
-    [fromMaybe "" mname, show hp <> "/" <> show (hp + hearts (maybeToMonoid cont))]
+    [fromMaybe "" mname, show hp <> "/" <> show (hp + res Hearts cont)]
 
+res2Text :: Resource -> Int -> Text
+res2Text r n = show n <> " " <> show r
 
+list2Text :: [Text] -> Text
+list2Text = maybe "Nothing" nempty2Text . nonEmpty
+
+nempty2Text :: NonEmpty Text -> Text
+nempty2Text xs
+    | length xs == 1 = head xs
+    | length xs == 2 = maybe "" head (nonEmpty $ tail xs) <> " and " <> head xs
+    | otherwise      = (T.concat . intersperse ", " $ tail xs) <> " and " <> head xs
+
+loot2Text :: Loot -> Text
+loot2Text = list2Text . toList . Map.mapWithKey res2Text . unLoot
+
+dir2Text :: Mechanics.Direction -> Text
+dir2Text N = "↑"
+dir2Text NE = "↗︎"
+dir2Text E = "→"
+dir2Text SE = "↘︎"
+dir2Text S = "↓"
+dir2Text SW = "↙︎"
+dir2Text W = "←"
+dir2Text NW = "↖︎"
+
+act2Text :: Action -> Text
+act2Text (Dir (Throw loot) dir) = dir2Text dir <> " Throw " <> loot2Text loot
+act2Text (Dir act dir) = dir2Text dir <> " " <> show act <> " "
+act2Text (Undir HealMe) = "Heal Self"
+act2Text (Undir ShootMe) = "Shoot Self"
+act2Text (Undir act) = show act
 
 draw :: AppState -> [Widget Name]
 draw s = let
@@ -87,7 +110,7 @@ draw s = let
 
     queueBox = borderWithLabel (txt "Action Plan")
         (vBox (defaultElem (txtWrap "Nothing Planned (Yet!)")
-        . fmap (strWrap . show) . reverse . toList . queue $ me))
+        . fmap (txtWrap . act2Text) . reverse . toList . queue $ me))
 
     worldTable = renderTable . grid2Table $ currView s
 
@@ -102,18 +125,18 @@ draw s = let
             , [clickable (DirActBtn (Throw mempty)) . txt  $ "t: Throw", dispDActCost (Throw mempty)]
             , [clickable (DirActBtn Grab) . txt $ "g: Grab", dispDActCost Grab]
             , [clickable (DirActBtn Heal) . txt $ "h: Heal", dispDActCost Heal]
-            , [clickable (UndirActBtn HealMe) . txt $ "H: Heal getActor", dispUActCost HealMe]
-            , [clickable (UndirActBtn ShootMe) . txt $ "S: Shoot getActor", dispUActCost ShootMe]
+            , [clickable (UndirActBtn HealMe) . txt $ "H: Heal Self", dispUActCost HealMe]
+            , [clickable (UndirActBtn ShootMe) . txt $ "S: Shoot Self", dispUActCost ShootMe]
             , [clickable (UndirActBtn Wait) . txt $ "w: Wait", dispUActCost Wait]
             ])
     
-    inventory = str ("Your Inventory: " ++ show (contents =<< mySq))
+    inventory = txt ("Your Inventory: " <> loot2Text (maybeToMonoid (contents <$> mySq)))
 
     selectedAct = vBox . fmap hCenter $
-        [ str ("Selected Action: " ++ show (currAction s))
+        [ txt ("Selected Action: " <> act2Text (currAction s))
         , case currAction s of
             Dir (Throw _) _ ->
-                str ("Selected Resource: " ++ show (currResource s))
+                str ("Selected Resource: " <> show (currResource s))
             _ -> emptyWidget
         ]
     
