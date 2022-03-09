@@ -1,4 +1,6 @@
-module Util where
+module Util
+    ( module Util -- This module consists entirely of helper functions, so export everything!
+    ) where
 
 import           Control.Monad.Except
 import           Data.Bool.HT ((?:))
