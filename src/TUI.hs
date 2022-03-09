@@ -143,12 +143,12 @@ draw s = let
     lSidebar = vBox
         [ actMenu
         , case currAction s of
-            Dir _ _ -> txt "[ and ] rotate direction"
+            Dir _ _ -> txtWrap "[ and ] rotate direction"
             _ -> emptyWidget 
         , case currAction s of
             Dir (Throw _) _ -> vBox
-                [ txt "+ and - adjust resource amount"
-                , txt "{ and } select resource type"
+                [ txtWrap "+ and - adjust resource amount"
+                , txtWrap "{ and } select resource type"
                 ]
             _ -> emptyWidget
         ]
