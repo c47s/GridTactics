@@ -142,6 +142,7 @@ draw s = let
         , inventory
         , selectedAct
         ]
+    
     centerWidthPercent = 50
     sbarWidthPercent = (100 - centerWidthPercent) `div` 2
     controlScreen = vCenter $ hBox
@@ -149,11 +150,13 @@ draw s = let
         , hCenter centerContent
         , hLimitPercent sbarWidthPercent . hCenter $ rSidebar
         ]
+    
     playerSwitchScreen = vCenter . vBox . fmap hCenter $
         [ txt $ "Ready, " <> aname nextA <> "?"
         , txt "(y/n)"
         , txt "Press . for next player"
         ]
+    
     in  [
         if changingPlayers s
             then playerSwitchScreen
