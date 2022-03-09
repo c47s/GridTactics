@@ -18,7 +18,7 @@
 
     *   [x] Make it all work
 
-*   [ ] Delete Main
+*   [x] Delete Main
 
 *   [ ] Create documentation
 
