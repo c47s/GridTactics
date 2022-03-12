@@ -33,17 +33,20 @@ getActor :<|> delActor :<|> look :<|> act :<|> delAct :<|> getDone :<|> setDone
     :<|> actorNames :<|> newActor :<|> getNumDone 
     = hoistClient (flatten api) clientToReader $ client $ flatten api
 
--- Crashes on any error!!!
+-- | Generalize API client actions by converting ClientErrors to runtime errors,
+-- and getting the environment using ReaderT.
 clientToReader :: (MonadIO m) => ClientM a -> ReaderT ClientEnv m a
 clientToReader cl = (either (error . show) id <$>) . liftIO . runClientM cl =<< ask
 
+-- | Run an API client request, getting the ClientEnv from the given app.
 inApp :: AppState -> ReaderT ClientEnv (EventM Name) a -> EventM Name a
 inApp s r = runReaderT r (clientEnv s)
 
 
 
-newtype GTEvent = Tick Int
+newtype GTEvent = Tick Int -- ^ Number of seconds since app start
 
+-- | The GridTactics Brick app
 gtApp :: App AppState GTEvent Name
 gtApp = App
     { appDraw = draw
@@ -65,6 +68,7 @@ selDirAct a s = s & case currAction s of
     Undir _ -> selAction $ Dir a
         (fromMaybe N . asum . fmap getDir . queue $ currActor s)
 
+-- | Grab and cache info from the server
 updateFromServer :: AppState -> EventM Name AppState
 updateFromServer s = do
     currActor' <- inApp s $ getActor    $ currActorID s
@@ -85,6 +89,7 @@ updateFromServer s = do
 startEvent :: AppState -> EventM Name AppState
 startEvent = updateFromServer <=< (activateMouseMode $>)
 
+-- | Continue after updating cached values from server
 continue' :: AppState -> EventM Name (Next AppState)
 continue' = continue <=< updateFromServer
 

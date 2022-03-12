@@ -25,7 +25,7 @@
 
 *   [ ] Create documentation
 
-    *   [ ] Client
+    *   [x] Client
 
     *   [ ] Server
 
@@ -42,6 +42,8 @@
     *   [ ] WebInstances
 
 *   [x] Refactor Loot as a Map from Resources to Ints
+
+*   [ ] Make Client error-tolerant
 
 *   [ ] Add logging to server
 
