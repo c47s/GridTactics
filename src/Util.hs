@@ -38,14 +38,21 @@ untilValidAnd chk getInput = do
 untilValid :: (Read a, MonadIO m) => InputT m (Maybe String) -> InputT m a
 untilValid = untilValidAnd (const Nothing)
 
-untilJust :: MonadIO m => InputT m (Maybe String) -> InputT m String
-untilJust getInput = do
+untilJustAnd :: MonadIO m => Check String String -> InputT m (Maybe String) -> InputT m String
+untilJustAnd chk getInput = do
     ln <- getInput
     case ln of
         Nothing -> do
             outputStrLn "Please enter something."
-            untilJust getInput
-        Just s -> return s
+            untilJustAnd chk getInput
+        Just s -> case chk s of
+            Just msg -> do
+                outputStrLn msg
+                untilJustAnd chk getInput
+            Nothing -> return s
+
+untilJust :: MonadIO m => InputT m (Maybe String) -> InputT m String
+untilJust = untilJustAnd (const Nothing)
 
 check :: msg -> (a -> Bool) -> Check a msg
 check msg p a = toMaybe (not $ p a) msg
@@ -55,6 +62,9 @@ nonNeg = check "Cannot be negative." (>= 0)
 
 gr0 :: (Num a, Ord a) => a -> Maybe String
 gr0 = check "Must be greater than zero." (> 0)
+
+nonBlank :: String -> Maybe String
+nonBlank = check "Please enter something." (not . null . words . fromString)
 
 -- Compose 2 checks
 (&>-) ::  Check a msg -> Check a msg -> Check a msg

@@ -218,7 +218,7 @@ main = runInputT defaultSettings do
         getInputLineWithInitial "> " ("42069","")
     
     outputStrLn ""
-    initName <- untilJust do
+    initName <- untilJustAnd nonBlank do
         g1 <- newStdGen
         g2 <- newStdGen
         g3 <- newStdGen
