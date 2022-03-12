@@ -23,6 +23,8 @@
 
 *   [x] Replace `show`-based UI components with specialized widgets
 
+*   [ ] Modify client to reject empty names
+
 *   [ ] Auto-generate keybinds and act list from a common source
 
 *   [ ] Create documentation

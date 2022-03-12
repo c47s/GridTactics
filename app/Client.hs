@@ -16,6 +16,7 @@ import Servant
 import Servant.API.Flatten
 import Servant.Client
 import System.Console.Haskeline
+import System.Random hiding (next)
 
 
 
@@ -170,6 +171,37 @@ activateMouseMode = do
   when (supportsMode output Mouse) $
     liftIO $ setMode output Mouse True
 
+baseNames :: [Text]
+baseNames = [ "Aimée"
+            , "Chloé"
+            , "Fleur"
+            , "Jewel"
+            , "Jolie"
+            , "Lucie"
+            , "Manon"
+            , "Marie"
+            , "Noel"
+            , "Renée"
+            , "Zoe"
+            , "Brice"
+            , "Denis"
+            , "Guy"
+            , "Hugo"
+            , "Jean"
+            , "Jules"
+            , "Leo"
+            , "Louis"
+            , "Luc"
+            , "Marc"
+            , "Noel"
+            , "Paul"
+            , "René"
+            , "Roy"
+            , "Sacha"
+            , "Simon"
+            , "Théo"
+            ]
+
 main :: IO ()
 main = runInputT defaultSettings do
     outputStrLn "Hello!"
@@ -187,8 +219,13 @@ main = runInputT defaultSettings do
     
     outputStrLn ""
     initName <- untilJust do
+        g1 <- getStdGen
+        g2 <- getStdGen
+        g3 <- getStdGen
+        let suggestedName = mixText g1 (randElem g2 baseNames) (randElem g3 baseNames)
+
         outputStrLn "Enter player name:"
-        getInputLineWithInitial "> " ("Jean","")
+        getInputLineWithInitial "> " (toString suggestedName,"")
 
     manager <- liftIO $ newManager defaultManagerSettings
 

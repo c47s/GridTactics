@@ -141,6 +141,9 @@ mixText gen = fromString .
     zipWith (?:) (uniforms gen)
     .: T.zip
 
+randElem :: (RandomGen g) => g -> [a] -> a
+randElem gen xs = xs !! fst (uniformR (0, length xs - 1) gen)
+
 
 
 -- Text
