@@ -219,9 +219,9 @@ main = runInputT defaultSettings do
     
     outputStrLn ""
     initName <- untilJust do
-        g1 <- getStdGen
-        g2 <- getStdGen
-        g3 <- getStdGen
+        g1 <- newStdGen
+        g2 <- newStdGen
+        g3 <- newStdGen
         let suggestedName = mixText g1 (randElem g2 baseNames) (randElem g3 baseNames)
 
         outputStrLn "Enter player name:"
