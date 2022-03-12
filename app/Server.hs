@@ -22,7 +22,7 @@ main = runInputT defaultSettings do
         getInputLineWithInitial "> " ("10","")
 
     let leqHalfWorld = check ("Must be at most " ++ show (wSize `div` 2) ++ " (half the world width).")
-        (<= wSize `div` 2)
+            (<= wSize `div` 2)
 
     outputStrLn ""
     fillPortion <- untilValidAnd
