@@ -21,6 +21,9 @@ main = runInputT defaultSettings do
         outputStrLn "Enter world width:"
         getInputLineWithInitial "> " ("10","")
 
+    let leqHalfWorld = check ("Must be at most " ++ show (wSize `div` 2) ++ " (half the world width).")
+        (<= wSize `div` 2)
+
     outputStrLn ""
     fillPortion <- untilValidAnd
         ( nonNeg
@@ -58,18 +61,14 @@ main = runInputT defaultSettings do
         getInputLineWithInitial "> " ("1","")
 
     outputStrLn ""
-    startRange <- untilValidAnd gr0 do
+    startRange <- untilValidAnd (gr0 &>- leqHalfWorld) do
         outputStrLn "Enter starting range:"
         getInputLineWithInitial "> " ("2","")
 
     outputStrLn ""
-    startVision <- untilValidAnd
-        ( gr0 
-        &>- check ("Must be smaller than " ++ show (wSize `div` 2) ++ " (half the world width).")
-            (< wSize `div` 2)
-        ) do
-            outputStrLn "Enter starting vision distance:"
-            getInputLineWithInitial "> " (show $ clamp 0 3 $ wSize `div` 2,"")
+    startVision <- untilValidAnd (gr0 &>- leqHalfWorld) do
+        outputStrLn "Enter starting vision distance:"
+        getInputLineWithInitial "> " (show $ clamp 0 3 $ wSize `div` 2,"")
 
     gen <- getStdGen
 
