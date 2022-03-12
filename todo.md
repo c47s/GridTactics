@@ -8,6 +8,9 @@
 
     Functions like stateToIO and doState
 
+*   [x] Add multiplayer between terminals on same machine\
+    Simply connect to localhost
+
 *   [x] Add multiplayer over network
 
     *   [x] Make API
@@ -16,16 +19,22 @@
 
     *   [x] Make client
 
-    *   [x] Make it all work
+    *   [ ] Make it all work...
+
+        *   [ ] ... over localhost
+
+        *   [ ] ... over LAN
+
+        *   [ ] ... over the internet
 
 *   [x] Delete Main\
     Pull out any useful code first (there probably is none since Client was originally a copy of Main)
 
 *   [x] Replace `show`-based UI components with specialized widgets
 
-*   [ ] Modify client to reject empty names
+*   [x] Modify client to reject empty names
 
-*   [ ] Auto-generate keybinds and act list from a common source
+*   [ ] Auto-generate keybind hints in UI and keybinds themselves from a common source
 
 *   [ ] Create documentation
 
@@ -48,6 +57,8 @@
 *   [x] Refactor Loot as a Map from Resources to Ints
 
 *   [ ] Make Client error-tolerant
+
+*   [ ] Allow Client to manage multiple actors
 
 *   [ ] Add logging to server
 
@@ -77,5 +88,3 @@
 
     *   [ ] Add Forms to UI\
         Will probably require adding lens stuff
-
-*   [ ] ~~Add multiplayer between terminals on same machine~~
