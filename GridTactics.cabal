@@ -23,6 +23,7 @@ common common-options
                      , aeson
                      , brick
                      , composition
+                     , containers
                      , deque
                      , extra
                      , ghc

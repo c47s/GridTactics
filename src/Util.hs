@@ -123,6 +123,12 @@ minusGt0 x y = do
     guard $ z > 0
     return z
 
+minusGeq0 :: (Ord n, Num n) => n -> n -> Maybe n
+minusGeq0 x y = do
+    let z = x - y
+    guard $ z >= 0
+    return z
+
 
 
 -- Random

@@ -35,6 +35,7 @@ import           Control.Monad.Morph
 import           Control.Zipper
 import           Data.Bool.HT (if')
 import           Data.Composition
+import           Data.Map.Merge.Strict
 import qualified Data.Map.Strict as Map
 import qualified Deque.Lazy as D
 import           Deque.Lazy (Deque)
@@ -114,12 +115,21 @@ singloot = Loot .: Map.singleton
 contains :: Loot -> Loot -> Bool
 contains = isJust .: without
 
-without :: Loot -> Loot -> Maybe Loot
-l1 `without` l2 = do
-  let l1' = Loot $ (Map.differenceWith minusGt0 `on` unLoot) l1 l2
-  guard $ (not . Map.null . unLoot $ l1') || l1 == l2
-  return l1'
+-- Handle removing a resource type that isn't in the Loot.
+-- Outer Maybe controls whether we scrap the whole Loot,
+-- inner Maybe controls whether we insert the value into the Loot.
+removeMissingResource :: Int -> Maybe (Maybe Int)
+removeMissingResource n
+  | n < 0     = Just $ Just $ negate n -- Removing negative = adding opposite.
+  | n == 0    = Just Nothing -- Take away nothing
+  | otherwise = Nothing -- Can't take away >0 amount of a resource that isn't there!
 
+without :: Loot -> Loot -> Maybe Loot
+without = fmap Loot .: mergeA
+  (traverseMissing $ const pure)
+  (traverseMaybeMissing $ const removeMissingResource)
+  (zipWithAMatched $ const minusGeq0)
+  `on` unLoot
 
 instance Semigroup Loot where
   (<>) = Loot .: Map.unionWith (+) `on` unLoot
