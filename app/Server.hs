@@ -4,6 +4,7 @@ import GridTactics
 import Relude
 import System.Console.Haskeline
 import System.Random
+import Brick.Util (clamp)
 
 main :: IO ()
 main = runInputT defaultSettings do
@@ -17,12 +18,12 @@ main = runInputT defaultSettings do
 
     outputStrLn ""
     wSize <- untilValidAnd gr0 do
-        outputStrLn "Enter world radius:"
+        outputStrLn "Enter world width:"
         getInputLineWithInitial "> " ("10","")
 
     outputStrLn ""
     fillPortion <- untilValidAnd
-        ( gr0
+        ( nonNeg
         &>- check "Cannot be greater than 100 percent." (<= 100)
         ) do
             outputStrLn "Enter percentage of the map to fill with scatters:"
@@ -62,9 +63,13 @@ main = runInputT defaultSettings do
         getInputLineWithInitial "> " ("2","")
 
     outputStrLn ""
-    startVision <- untilValidAnd gr0 do
-        outputStrLn "Enter starting vision distance:"
-        getInputLineWithInitial "> " ("3","")
+    startVision <- untilValidAnd
+        ( gr0 
+        &>- check ("Must be smaller than " ++ show (wSize `div` 2) ++ " (half the world width).")
+            (< wSize `div` 2)
+        ) do
+            outputStrLn "Enter starting vision distance:"
+            getInputLineWithInitial "> " (show $ clamp 0 3 $ wSize `div` 2,"")
 
     gen <- getStdGen
 
