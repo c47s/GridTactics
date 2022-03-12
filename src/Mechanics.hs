@@ -362,12 +362,10 @@ class World w where
 
   spendActPts :: Int -> Coords -> w -> Maybe w
   spendActPts n c w = do
-    let c' = getSquare c w
-    me <- c'
-    let cont = contents me
-    let actions' = res Actions cont - n
-    guard $ actions' >= 0
-    return $ updateSquare (fmap \e -> e {contents = singloot Actions actions' <> cont}) c w
+    let s = getSquare c w
+    me <- s
+    cont' <- contents me `without` singloot Actions n
+    return $ updateSquare (fmap \e -> e {contents = cont'}) c w
 
   spendFor :: Action -> Coords -> w -> Maybe w
   spendFor = spendActPts . cost

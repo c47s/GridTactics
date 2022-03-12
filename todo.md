@@ -21,7 +21,7 @@
 *   [x] Delete Main\
     Pull out any useful code first (there probably is none since Client was originally a copy of Main)
 
-*   [ ] Replace `show`-based UI components with specialized widgets
+*   [x] Replace `show`-based UI components with specialized widgets
 
 *   [ ] Create documentation
 
@@ -41,7 +41,7 @@
 
     *   [ ] WebInstances
 
-*   [ ] Refactor Loot as a Map from Resources to Ints
+*   [x] Refactor Loot as a Map from Resources to Ints
 
 *   [ ] Add logging to server
 
