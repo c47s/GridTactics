@@ -83,7 +83,8 @@ instance Semigroup Entity where
         n <- ename e
         n' <- ename e'
         return $ mixText -- Merging 2 named Entities? This'll be fun!
-          (mkStdGen . sumText $ show e <> show e') -- Make a random gen based on details of these Entities
+          (mkStdGen . sumText -- Make a stdGen based on details of these Entities
+            $ show e <> show e')
           n n'
       , ename e
       , ename e'
