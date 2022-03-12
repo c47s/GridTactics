@@ -71,10 +71,10 @@ selDirAct a s = s & case currAction s of
 -- | Grab and cache info from the server
 updateFromServer :: AppState -> EventM Name AppState
 updateFromServer s = do
-    currActor' <- inApp s $ getActor    $ currActorID s
-    nextActor' <- inApp s $ getActor    $ nextActorID s
-    currView'  <- inApp s $ look    $ currActorID s
-    currDone'  <- inApp s $ getDone $ currActorID s
+    currActor' <- inApp s $ getActor $ currActorID s
+    nextActor' <- inApp s $ getActor $ nextActorID s
+    currView'  <- inApp s $ look     $ currActorID s
+    currDone'  <- inApp s $ getDone  $ currActorID s
     currNumDone' <- inApp s getNumDone
     currNames' <- inApp s actorNames
     return s
@@ -113,6 +113,8 @@ handleEvent s (VtyEvent (EvKey (KChar c) _modifiers)) = case c of
     'h' -> continue $ selDirAct Heal s
     'H' -> continue $ selUndirAct HealMe s
     'S' -> continue $ selUndirAct ShootMe s
+    'r' -> continue $ selUndirAct UpRange s
+    'v' -> continue $ selUndirAct UpVision s
     'w' -> continue $ selUndirAct Wait s
     ((`elem` ['=','+']) -> True) -> continue case currAction s of
         Dir (Throw l) d -> s {currAction = Dir (Throw (l <> singloot (currResource s) 1)) d}

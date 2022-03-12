@@ -31,6 +31,7 @@ module Mechanics
     , World (..)
     ) where
 
+import           Brick.Util (clamp)
 import           Control.Monad.Morph
 import           Control.Zipper
 import           Data.Bool.HT (if')
@@ -199,6 +200,8 @@ data UndirAction
   = Die
   | HealMe
   | ShootMe
+  | UpRange
+  | UpVision
   | Wait
   deriving stock (Eq, Ord, Show, Generic)
 
@@ -211,6 +214,8 @@ cost (Dir Heal _)      = 2
 cost (Undir Die)       = 0
 cost (Undir HealMe)    = 3
 cost (Undir ShootMe)   = -1
+cost (Undir UpRange)   = 3
+cost (Undir UpVision)  = 3
 cost (Undir Wait)      = 0
 
 getDir :: Action -> Maybe Direction
@@ -236,6 +241,8 @@ class World w where
   addActor :: Actor -> State w UID -- Register an Actor WITHOUT assigning it to its square. Only exists to be implemented by World instances. Use register instead.
   unaddActor :: UID -> w -> w -- Delete an Actor from actors. Only exists to be implemented by World instances. Use delActor instead.
   updateSquare :: (Square -> Square) -> Coords -> w -> w
+  maxRange :: w -> Int
+  maxVision :: w -> Int
 
   register :: Actor -> StateT w Maybe UID -- Register this Actor in the World.
   register a = do
@@ -376,7 +383,8 @@ class World w where
     let s = getSquare c w
     me <- s
     let cont = contents me
-    act <- actor w me
+    aID <- actorID me
+    let act = lookupActor aID w
     case a of
       Dir a' d -> case a' of
         Move -> do
@@ -406,6 +414,12 @@ class World w where
           ) c w
       Undir HealMe -> heal c w
       Undir ShootMe -> return $ hit c w
+      Undir UpRange -> return $ updateActor (\act' -> act' {range = 
+        clamp 0 (maxRange w) $ range act' + 1
+        }) aID w
+      Undir UpVision -> return $ updateActor (\act' -> act' {vision = 
+        clamp 0 (maxVision w) $ vision act' + 1
+        }) aID w
       Undir Wait -> return w
 
   -- Pop an Action from the Actor's queue, and do it.

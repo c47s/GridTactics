@@ -91,6 +91,8 @@ act2Text (Dir (Throw loot) dir) = dir2Text dir <> " Throw " <> loot2Text loot
 act2Text (Dir act dir) = dir2Text dir <> " " <> show act <> " "
 act2Text (Undir HealMe) = "Heal Self"
 act2Text (Undir ShootMe) = "Shoot Self"
+act2Text (Undir UpRange) = "Upgrade Range"
+act2Text (Undir UpVision) = "Upgrade Vision"
 act2Text (Undir act) = show act
 
 draw :: AppState -> [Widget Name]
@@ -127,6 +129,8 @@ draw s = let
             , [clickable (DirActBtn Heal) . txt $ "h: Heal", dispDActCost Heal]
             , [clickable (UndirActBtn HealMe) . txt $ "H: Heal Self", dispUActCost HealMe]
             , [clickable (UndirActBtn ShootMe) . txt $ "S: Shoot Self", dispUActCost ShootMe]
+            , [clickable (UndirActBtn UpRange) . txt $ "r: Upgrade Range", dispUActCost UpRange]
+            , [clickable (UndirActBtn UpVision) . txt $ "v: Upgrade Vision", dispUActCost UpVision]
             , [clickable (UndirActBtn Wait) . txt $ "w: Wait", dispUActCost Wait]
             ])
     
