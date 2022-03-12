@@ -111,7 +111,10 @@ draw s = let
         ]
 
     queueBox = borderWithLabel (txt "Action Plan")
-        (vBox (defaultElem (txtWrap "Nothing Planned (Yet!)")
+        (vBox (defaultElems
+            [ txtWrap "Nothing Planned (Yet!)"
+            , txtWrap "ENTER: Plan selected action"
+            ]
         . fmap (txtWrap . act2Text) . reverse . toList . queue $ me))
 
     worldTable = renderTable . grid2Table $ currView s

@@ -67,7 +67,7 @@
 
     *   [ ] Clickable buttons for other UI interactions
 
-        *   [ ] Submitting Action
+        *   [ ] ~~Submitting Action~~
 
         *   [ ] Changing Actor
 

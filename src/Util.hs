@@ -115,11 +115,14 @@ hoistEither' = hoistExcept . hoistEither
 
 -- List
 
-defaultElem :: a -> [a] -> [a]
-defaultElem x [] = [x]
-defaultElem _ xs = xs
+defaultElems :: [a] -> [a] -> [a]
+defaultElems xs [] = xs
+defaultElems _ ys = ys
 
--- Unsafe!
+defaultElem :: a -> [a] -> [a]
+defaultElem = defaultElems . one
+
+-- | Unsafe!
 middle :: [a] -> a
 middle xs = xs !! (length xs `div` 2)
 
