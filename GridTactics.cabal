@@ -21,6 +21,7 @@ source-repository head
 common common-options
   build-depends:       base
                      , aeson
+                     , bimap
                      , brick
                      , composition
                      , containers
@@ -38,7 +39,6 @@ common common-options
                      , servant-client
                      , servant-server
                      , servant-flatten
-                     , text
                      , utility-ht
                      , vty
                      , warp

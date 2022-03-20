@@ -21,7 +21,7 @@
 
     *   [ ] Make it all work...
 
-        *   [ ] ... over localhost
+        *   [x] ... over localhost
 
         *   [ ] ... over LAN
 
@@ -34,7 +34,7 @@
 
 *   [x] Modify client to reject empty names
 
-*   [ ] Auto-generate keybind hints in UI and keybinds themselves from a common source
+*   [x] Auto-generate keybind hints in UI and keybinds themselves from a common source
 
 *   [ ] Create documentation
 

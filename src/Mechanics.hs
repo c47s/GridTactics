@@ -196,6 +196,23 @@ data DirAction
   | Heal
   deriving stock (Eq, Ord, Show, Generic)
 
+instance Enum DirAction where
+  fromEnum Move      = 0
+  fromEnum Shoot     = 1
+  fromEnum (Throw _) = 2
+  fromEnum Grab      = 3
+  fromEnum Heal      = 4
+  toEnum 0 = Move
+  toEnum 1 = Shoot
+  toEnum 2 = Throw mempty
+  toEnum 3 = Grab
+  toEnum 4 = Heal
+  toEnum n = toEnum (n `mod` 5)
+
+instance Bounded DirAction where
+  minBound = Move
+  maxBound = Heal
+
 data UndirAction
   = Die
   | HealMe
@@ -203,7 +220,7 @@ data UndirAction
   | UpRange
   | UpVision
   | Wait
-  deriving stock (Eq, Ord, Show, Generic)
+  deriving stock (Eq, Ord, Enum, Bounded, Show, Generic)
 
 cost :: Action -> Int
 cost (Dir Move _)      = 1

@@ -2,21 +2,23 @@
 
 module Client (main) where
 
-import Brick
-import Brick.BChan
-import Brick.Main
-import Control.Concurrent (forkIO, threadDelay)
-import Control.Monad.Except
-import Graphics.Vty
-import GridTactics hiding (World(..))
-import Network.HTTP.Client
-import Relude
-import Relude.Extra.Enum (prev, next)
-import Servant
-import Servant.API.Flatten
-import Servant.Client
-import System.Console.Haskeline
-import System.Random hiding (next)
+import           Brick
+import           Brick.BChan
+import           Brick.Main
+import           Control.Concurrent (forkIO, threadDelay)
+import           Control.Monad.Except
+import qualified Data.Bimap as Bap
+import qualified Data.Text as T
+import           Graphics.Vty
+import           GridTactics hiding (World(..))
+import           Network.HTTP.Client
+import           Relude
+import           Relude.Extra.Enum (prev, next)
+import           Servant
+import           Servant.API.Flatten
+import           Servant.Client
+import           System.Console.Haskeline
+import           System.Random hiding (next)
 
 
 
@@ -105,60 +107,51 @@ toggleDone aID s = inApp s do
     _ <- setDone aID $ not thisDone
     lift $ continue' s
 
-handleEvent :: AppState -> BrickEvent Name GTEvent -> EventM Name (Next AppState)
-handleEvent s (VtyEvent (EvKey (KChar c) _modifiers)) = case c of
-    'm' -> continue $ selDirAct Move s
-    's' -> continue $ selDirAct Shoot s
-    't' -> continue $ selDirAct (Throw mempty) s
-    'g' -> continue $ selDirAct Grab s
-    'h' -> continue $ selDirAct Heal s
-    'H' -> continue $ selUndirAct HealMe s
-    'S' -> continue $ selUndirAct ShootMe s
-    'r' -> continue $ selUndirAct UpRange s
-    'v' -> continue $ selUndirAct UpVision s
-    'w' -> continue $ selUndirAct Wait s
-    ((`elem` ['=','+']) -> True) -> continue case currAction s of
-        Dir (Throw l) d -> s {currAction = Dir (Throw (l <> singloot (currResource s) 1)) d}
-        _ -> s
-    '-' -> continue case currAction s of
-        Dir (Throw l) d -> s {currAction = Dir (Throw $ maybeToMonoid (l `without` singloot (currResource s) 1)) d}
-        _ -> s
-    '}' -> continue $ s {currResource = next . currResource $ s}
-    ']' -> continue case currAction s of
-        Dir a d -> s {currAction = Dir a (next d)}
-        _ -> s
-    '{' -> continue $ s {currResource = prev . currResource $ s}
-    '[' -> continue case currAction s of
-        Dir a d -> s {currAction = Dir a (prev d)}
-        _ -> s
-    '.' -> continue if changingPlayers s
-        then s {actorIDs = rotate $ actorIDs s}
-        else s {changingPlayers = True}
-    ',' -> continue if changingPlayers s
-        then s {actorIDs = etator $ actorIDs s}
-        else s
-    'y' -> continue $ if changingPlayers s
-        then s
-            { actorIDs = rotate $ actorIDs s
-            , currAction = Undir Wait
-            , currResource = Actions
-            , changingPlayers = False
+doUIAction :: UIAction -> AppState -> EventM Name (Next AppState)
+doUIAction (SelUndirAct a) s = continue $ selUndirAct a s
+doUIAction (SelDirAct a) s = continue $ selDirAct a s
+doUIAction Increment s = continue case currAction s of
+    Dir (Throw l) d -> s {currAction = Dir (Throw (l <> singloot (currResource s) 1)) d}
+    _ -> s
+doUIAction Decrement s = continue case currAction s of
+    Dir (Throw l) d -> s {currAction = Dir (Throw $ maybeToMonoid (l `without` singloot (currResource s) 1)) d}
+    _ -> s
+doUIAction RotL s = continue case currAction s of
+    Dir a d -> s {currAction = Dir a (prev d)}
+    _ -> s
+doUIAction RotR s = continue case currAction s of
+    Dir a d -> s {currAction = Dir a (next d)}
+    _ -> s
+doUIAction RotL' s = continue $ s {currResource = prev . currResource $ s}
+doUIAction RotR' s = continue $ s {currResource = next . currResource $ s}
+doUIAction PlayerL s = continue if changingPlayers s
+    then s {actorIDs = etator $ actorIDs s}
+    else s
+doUIAction PlayerR s = continue if changingPlayers s
+    then s {actorIDs = rotate $ actorIDs s}
+    else s {changingPlayers = True}
+doUIAction Yes s = continue $ if changingPlayers s
+    then s
+        { actorIDs = rotate $ actorIDs s
+        , currAction = Undir Wait
+        , currResource = Actions
+        , changingPlayers = False
+        }
+    else s
+doUIAction No s = continue $ if changingPlayers s
+    then s { changingPlayers = False
+            , actorIDs = rotateTo (currActorID s) $ actorIDs s
             }
-        else s
-    'n' -> continue $ if changingPlayers s
-        then s { changingPlayers = False
-               , actorIDs = rotateTo (currActorID s) $ actorIDs s
-               }
-        else s
-    'd' -> toggleDone (currActorID s) s
-    'q' -> quit s
-    _ -> continue s
-handleEvent s (MouseDown (DirActBtn a) _ _ _) = continue $ selDirAct a s
-handleEvent s (MouseDown (UndirActBtn a) _ _ _) = continue $ selUndirAct a s
-handleEvent s (MouseDown (DoneBtn aID) _ _ _) = toggleDone aID s
-handleEvent s (VtyEvent (EvKey KEnter _modifiers)) = inApp s (act (currActorID s) (currAction s)) >> continue' s
-handleEvent s (VtyEvent (EvKey KBS _modifiers)) = inApp s (delAct $ currActorID s) >> continue' s
-handleEvent s (VtyEvent (EvKey KEsc _modifiers)) = quit s
+    else s
+doUIAction ToggleDone s = toggleDone (currActorID s) s
+doUIAction SubmAction s = inApp s (act (currActorID s) (currAction s)) >> continue' s
+doUIAction DelAction s = inApp s (delAct $ currActorID s) >> continue' s
+doUIAction Quit s = quit s
+doUIAction (Also uiA) s = doUIAction uiA s
+
+handleEvent :: AppState -> BrickEvent Name GTEvent -> EventM Name (Next AppState)
+handleEvent s (VtyEvent (EvKey key _modifiers)) = maybe continue doUIAction (Bap.lookup key (keybinds s)) s
+handleEvent s (MouseDown (Btn uiAct) _ _ _) = doUIAction uiAct s
 handleEvent s (AppEvent (Tick n)) = s & if currDone s || n `mod` 5 == 0 then continue' else continue
 handleEvent s _otherEvent = continue s
 
@@ -171,36 +164,44 @@ activateMouseMode = do
   when (supportsMode output Mouse) $
     liftIO $ setMode output Mouse True
 
-baseNames :: [Text]
-baseNames = [ "Aimée"
-            , "Chloé"
-            , "Fleur"
-            , "Jewel"
-            , "Jolie"
-            , "Lucie"
-            , "Manon"
-            , "Marie"
-            , "Noel"
-            , "Renée"
-            , "Zoe"
-            , "Brice"
-            , "Denis"
-            , "Guy"
-            , "Hugo"
-            , "Jean"
-            , "Jules"
-            , "Leo"
-            , "Louis"
-            , "Luc"
-            , "Marc"
-            , "Noel"
-            , "Paul"
-            , "René"
-            , "Roy"
-            , "Sacha"
-            , "Simon"
-            , "Théo"
-            ]
+defaultKeybinds :: Bap.Bimap Key UIAction
+defaultKeybinds = Bap.fromList
+    [ (KChar 'm', SelDirAct Move)
+    , (KChar 's', SelDirAct Shoot)
+    , (KChar 't', SelDirAct (Throw mempty))
+    , (KChar 'g', SelDirAct Grab)
+    , (KChar 'h', SelDirAct Heal)
+    , (KChar 'z', SelUndirAct Die)
+    , (KChar 'H', SelUndirAct HealMe)
+    , (KChar 'S', SelUndirAct ShootMe)
+    , (KChar 'r', SelUndirAct UpRange)
+    , (KChar 'v', SelUndirAct UpVision)
+    , (KChar 'w', SelUndirAct Wait)
+    , (KChar '+', Increment)
+    , (KChar '=', Also Increment)
+    , (KChar '-', Decrement)
+    , (KChar '[', RotL)
+    , (KChar ']', RotR)
+    , (KChar '{', RotL')
+    , (KChar '}', RotR')
+    , (KChar ',', PlayerL)
+    , (KChar '.', PlayerR)
+    , (KChar 'y', Yes)
+    , (KChar 'n', No)
+    , (KChar 'd', ToggleDone)
+    , (KChar 'q', Quit)
+    , (KEnter, SubmAction)
+    , (KDel, DelAction)
+    , (KBS, Also DelAction)
+    ]
+
+frenchNames :: [Text]
+frenchNames =
+    [ "Aimée", "Chloé", "Fleur", "Jewel", "Jolie", "Lucie", "Manon"
+    , "Marie", "Noel ", "Renée", "Zoe  ", "Brice", "Denis", "Guy  "
+    , "Hugo ", "Jean ", "Jules", "Leo  ", "Louis", "Luc  ", "Marc "
+    , "Noel ", "Paul ", "René ", "Roy  ", "Sacha", "Simon", "Théo "
+    ]
 
 main :: IO ()
 main = runInputT defaultSettings do
@@ -222,7 +223,11 @@ main = runInputT defaultSettings do
         g1 <- newStdGen
         g2 <- newStdGen
         g3 <- newStdGen
-        let suggestedName = mixText g1 (randElem g2 baseNames) (randElem g3 baseNames)
+        g4 <- newStdGen
+        g5 <- newStdGen
+        let suggestedName = T.takeWhile (/= ' ') $ mixText g1
+                (mixText g2 (randElem g3 frenchNames) (randElem g4 frenchNames))
+                (randElem g5 frenchNames)
 
         outputStrLn "Enter player name:"
         getInputLineWithInitial "> " (toString suggestedName,"")
@@ -239,6 +244,7 @@ main = runInputT defaultSettings do
 
     let initialState = AppState
             { clientEnv = env
+            , keybinds = defaultKeybinds
             , actorIDs = one initActorID
             , currAction = Undir Wait
             , currResource = Actions

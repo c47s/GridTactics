@@ -126,6 +126,11 @@ defaultElem = defaultElems . one
 middle :: [a] -> a
 middle xs = xs !! (length xs `div` 2)
 
+(//) :: (Eq a) => [a] -> a -> [a]
+[]     // _ = []
+(x:xs) // y | x == y    = xs
+          | otherwise = x : (xs // y)
+
 
 
 -- Math
