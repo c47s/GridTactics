@@ -96,8 +96,12 @@ sq2Texts Nothing = [" "," "]
 sq2Texts (Just (Entity _ mname hp cont)) =
     [fromMaybe "" mname, show hp <> "/" <> show (hp + res Hearts cont)]
 
+resType2Text :: Resource -> Text
+resType2Text Actions = "Action Points"
+resType2Text Hearts  = "Health Chunks"
+
 res2Text :: Resource -> Int -> Text
-res2Text r n = show n <> " " <> show r
+res2Text r n = show n <> " " <> resType2Text r
 
 list2Text :: [Text] -> Text
 list2Text = maybe "Nothing" nempty2Text . nonEmpty
@@ -197,7 +201,7 @@ draw s = let
         [ txt ("Selected Action: " <> act2Text (currAction s))
         , case currAction s of
             Dir (Throw _) _ ->
-                str ("Selected Resource: " <> show (currResource s))
+                txt ("Selected Resource: " <> resType2Text (currResource s))
             _ -> emptyWidget
         ]
     
