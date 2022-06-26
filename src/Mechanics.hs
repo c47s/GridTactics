@@ -465,12 +465,16 @@ class World w where
       )
     . actors $ w
   
+  runRound :: w -> w
+  runRound = execState do
+        gen <- splitGen
+        everyone <- gets actors
+        modify (foldr (.) id $ popAct <$> shuffle' everyone (length everyone) gen)
+
   runTurn :: w -> w 
   runTurn = execState do
-    gen <- splitGen
-    everyone <- gets actors
-    let runRound = foldr (.) id $ popAct <$> shuffle' everyone (length everyone) gen -- :: w -> w
     let queuesEmpty w = all (D.null . queue . flip lookupActor w) . actors $ w
     modify $ until queuesEmpty runRound
     modify . giveAllLoot $ singloot Actions 1
+    everyone <- gets actors
     modify $ foldr (.) id $ (updateActor \a -> a {done = False}) <$> everyone
