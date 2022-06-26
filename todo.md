@@ -36,6 +36,8 @@
 
 *   [x] Auto-generate keybind hints in UI and keybinds themselves from a common source
 
+*   [x] Write how2play
+
 *   [ ] Create documentation
 
     *   [x] Client
