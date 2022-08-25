@@ -128,11 +128,16 @@ dir2Text NW = "↖︎"
 act2Text :: Action -> Text
 act2Text (Dir (Throw loot) dir) = dir2Text dir <> " Throw " <> loot2Text loot
 act2Text (Dir act dir) = dir2Text dir <> " " <> show act <> " "
-act2Text (Undir HealMe) = "Heal Self"
-act2Text (Undir ShootMe) = "Shoot Self"
-act2Text (Undir UpRange) = "Upgrade Range"
-act2Text (Undir UpVision) = "Upgrade Vision"
-act2Text (Undir act) = show act
+act2Text actn = basicAct2Text actn
+
+basicAct2Text :: Action -> Text
+basicAct2Text (Dir (Throw _) _) = "Throw"
+basicAct2Text (Dir act _) = show act
+basicAct2Text (Undir HealMe) = "Heal Self"
+basicAct2Text (Undir ShootMe) = "Shoot Self"
+basicAct2Text (Undir UpRange) = "Upgrade Range"
+basicAct2Text (Undir UpVision) = "Upgrade Vision"
+basicAct2Text (Undir act) = show act
 
 key2Text :: Key -> Text
 key2Text (KChar c) = fromString [c]
@@ -172,7 +177,7 @@ draw s = let
         [
             [ clickable (Btn $ SelDirAct act) . txt
                 $ dispBind (SelDirAct act)
-                    <> ": " <> act2Text (Dir act N)
+                    <> ": " <> basicAct2Text (Dir act N)
             , dispDActCost act
             ]
         | act <- acts
@@ -182,7 +187,7 @@ draw s = let
         [
             [ clickable (Btn $ SelUndirAct act) . txt
                 $ dispBind (SelUndirAct act)
-                    <> ": " <> act2Text (Undir act)
+                    <> ": " <> basicAct2Text (Undir act)
             , dispUActCost act
             ]
         | act <- acts
