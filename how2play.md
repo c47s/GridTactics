@@ -10,36 +10,6 @@ Once you're comfortably situated and no-one can see your screen, press `y` to en
 
 ## Playing the Game
 
-Nearly all of your time while playing GridTactics will be spent in this screen:
-
-```
-┌──────────────────────┐                   You are Julis                    ┌────────────────┐
-│_: Action         Cost│    ┌─────┬─────┬─────┬─────┬─────┬─────┬─────┐     │d: End Turn     │
-│m: ↑ Move            1│    │ 2/2 │ 2/2 │ 2/2 │     │     │ 2/2 │ 2/2 │     ├────────────────┤
-│s: ↑ Shoot           1│    │     │     │     │     │     │     │     │     │0/1 players are │
-│t: ↑ Throw Nothing   0│    ├─────┼─────┼─────┼─────┼─────┼─────┼─────┤     │done            │
-│g: ↑ Grab            1│    │     │ 2/2 │     │ 2/2 │ 2/2 │ 2/2 │ 2/2 │     └────────────────┘
-│h: ↑ Heal            2│    │     │     │     │     │     │     │     │     ┌───Action Plan──┐
-│H: Heal Self         3│    ├─────┼─────┼─────┼─────┼─────┼─────┼─────┤     │Nothing Planned │
-│S: Shoot Self       -1│    │     │     │ 2/2 │ 2/2 │ 2/2 │ 2/2 │     │     │(Yet!)          │
-│r: Upgrade Range     3│    │     │     │     │     │     │     │     │     └────────────────┘
-│v: Upgrade Vision    3│    ├─────┼─────┼─────┼─────┼─────┼─────┼─────┤     Enter: Plan       
-│w: Wait              0│    │     │ 2/2 │ 2/2 │Julis│     │ 2/2 │     │     selected action   
-└──────────────────────┘    │     │     │     │3/3  │     │     │     │     Delete: Delete    
-[ and ] rotate direction    ├─────┼─────┼─────┼─────┼─────┼─────┼─────┤     last action       
-                            │ 2/2 │     │     │ 2/2 │     │ 2/2 │     │                       
-                            │     │     │     │     │     │     │     │                       
-                            ├─────┼─────┼─────┼─────┼─────┼─────┼─────┤                       
-                            │     │     │ 2/2 │ 2/2 │ 2/2 │ 2/2 │     │                       
-                            │     │     │     │     │     │     │     │                       
-                            ├─────┼─────┼─────┼─────┼─────┼─────┼─────┤                       
-                            │ 2/2 │ 2/2 │     │ 2/2 │ 2/2 │ 2/2 │     │                       
-                            │     │     │     │     │     │     │     │                       
-                            └─────┴─────┴─────┴─────┴─────┴─────┴─────┘                       
-                                     Your Inventory: 1 Action Points
-                                     Selected Action: ↘︎ Shoot
-```
-
 All players plan their turns simultaneously, and actions only happen once everyone is done planning.
 
 Everyone's actions happen in order, i.e. everyone's first actions happen before everyone's second actions. However, beyond this, the order is random, i.e. one player's first action could happen before or after another player's first action.
