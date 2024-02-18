@@ -37,9 +37,12 @@ type ActAPI = "act" :>
 
 type DoneAPI = "done" :> Modify '[JSON] Bool
 
-type ActorsAPI = NamesAPI
+type ActorsAPI = UIDsAPI
+            :<|> NamesAPI
             :<|> NewAPI
             :<|> NumDoneAPI
+
+type UIDsAPI = Get '[JSON] [UID]
 
 type NamesAPI = "names" :> Get '[JSON] [Text]
 
@@ -108,6 +111,9 @@ hDone :: (World w) => UID -> Config -> IORef w -> Server DoneAPI
 hDone aID conf ref = hGetDone aID conf ref
               :<|> hPostDone aID conf ref
 
+hUIDs :: (World w) => Config -> IORef w -> Server UIDsAPI
+hUIDs _conf = doState $ gets actors
+
 hNames :: (World w) => Config -> IORef w -> Server NamesAPI
 hNames _conf = doState $ gets $ \w -> aname . flip lookupActor w <$> actors w
 
@@ -127,7 +133,8 @@ hActor conf ref aID = hActorSelf aID conf ref
             :<|> hDone aID conf ref
 
 hActors :: (World w) => Config -> IORef w -> Server ActorsAPI
-hActors conf ref = hNames conf ref
+hActors conf ref = hUIDs conf ref
+     :<|> hNames conf ref
      :<|> hNew conf ref
      :<|> hNumDone conf ref
 

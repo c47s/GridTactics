@@ -29,11 +29,12 @@ act :: (MonadIO m) => UID -> Action -> ReaderT ClientEnv m NoContent
 delAct :: (MonadIO m) => UID -> ReaderT ClientEnv m NoContent
 getDone :: (MonadIO m) => UID -> ReaderT ClientEnv m Bool
 setDone :: (MonadIO m) => UID -> Bool -> ReaderT ClientEnv m NoContent
+actorIDs :: (MonadIO m) => ReaderT ClientEnv m [UID]
 actorNames :: (MonadIO m) => ReaderT ClientEnv m [Text]
 newActor :: (MonadIO m) => Text -> ReaderT ClientEnv m UID
 getNumDone :: (MonadIO m) => ReaderT ClientEnv m Int
 getActor :<|> delActor :<|> look :<|> act :<|> delAct :<|> getDone :<|> setDone
-    :<|> actorNames :<|> newActor :<|> getNumDone 
+    :<|> actorIDs :<|> actorNames :<|> newActor :<|> getNumDone 
     = hoistClient (flatten api) clientToReader $ client $ flatten api
 
 -- | Generalize API client actions by converting ClientErrors to runtime errors,
@@ -125,7 +126,7 @@ doUIAction RotR s = continue case currAction s of
 doUIAction RotL' s = continue $ s {currResource = prev . currResource $ s}
 doUIAction RotR' s = continue $ s {currResource = next . currResource $ s}
 doUIAction PlayerL s = continue if changingPlayers s
-    then s {actorIDs = etator $ actorIDs s}
+    then s {myActorIDs = etator $ myActorIDs s}
     else s
 doUIAction PlayerR s = continue if changingPlayers s
     then s {actorIDs = rotate $ actorIDs s}
