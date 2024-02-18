@@ -43,6 +43,7 @@ common common-options
                      , vty
                      , warp
                      , zippers
+                     , wai-logger
   
   ghc-options:         -Wall
                        -Wcompat

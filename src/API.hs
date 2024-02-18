@@ -11,6 +11,7 @@ import           Control.Monad.Except
 import qualified Deque.Lazy as D 
 import           Mechanics
 import           Network.Wai.Handler.Warp
+import           Network.Wai.Logger (withStdoutLogger)
 import           Relude
 import           Servant
 import           Util
@@ -147,4 +148,6 @@ hAPI conf ref = hActor conf ref
 runServer :: (World w) => Int -> w -> Config -> IO ()
 runServer port initialWorld config = do
     wRef <- newIORef initialWorld
-    run port (serve api (hAPI config wRef))
+    withStdoutLogger $ \aplogger -> do
+        let settings = setPort port $ setLogger aplogger defaultSettings
+        runSettings settings (serve api (hAPI config wRef))
