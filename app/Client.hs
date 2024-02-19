@@ -14,39 +14,15 @@ import           GridTactics hiding (World(..))
 import           Network.HTTP.Client
 import           Relude
 import           Relude.Extra.Enum (prev, next)
-import           Servant
-import           Servant.API.Flatten
 import           Servant.Client
 import           System.Console.Haskeline
 import           System.Random hiding (next)
 
 
 
-getActor :: (MonadIO m) => UID -> ReaderT ClientEnv m Actor
-delActor :: MonadIO m => UID -> ReaderT ClientEnv m NoContent
-look :: (MonadIO m) => UID -> ReaderT ClientEnv m [[Square]]
-act :: (MonadIO m) => UID -> Action -> ReaderT ClientEnv m NoContent
-delAct :: (MonadIO m) => UID -> ReaderT ClientEnv m NoContent
-getDone :: (MonadIO m) => UID -> ReaderT ClientEnv m Bool
-setDone :: (MonadIO m) => UID -> Bool -> ReaderT ClientEnv m NoContent
-actorIDs :: (MonadIO m) => ReaderT ClientEnv m [UID]
-actorNames :: (MonadIO m) => ReaderT ClientEnv m [Text]
-newActor :: (MonadIO m) => Text -> ReaderT ClientEnv m UID
-getNumDone :: (MonadIO m) => ReaderT ClientEnv m Int
-getActor :<|> delActor :<|> look :<|> act :<|> delAct :<|> getDone :<|> setDone
-    :<|> actorIDs :<|> actorNames :<|> newActor :<|> getNumDone 
-    = hoistClient (flatten api) clientToReader $ client $ flatten api
-
--- | Generalize API client actions by converting ClientErrors to runtime errors,
--- and getting the environment using ReaderT.
-clientToReader :: (MonadIO m) => ClientM a -> ReaderT ClientEnv m a
-clientToReader cl = (either (error . show) id <$>) . liftIO . runClientM cl =<< ask
-
 -- | Run an API client request, getting the ClientEnv from the given app.
 inApp :: AppState -> ReaderT ClientEnv (EventM Name) a -> EventM Name a
 inApp s r = runReaderT r (clientEnv s)
-
-
 
 newtype GTEvent = Tick Int -- ^ Number of seconds since app start
 
@@ -99,7 +75,7 @@ continue' = continue <=< updateFromServer
 
 quit :: AppState -> EventM Name (Next AppState)
 quit s = do
-    traverse_ (inApp s <$> delActor) (actorIDs s)
+    traverse_ (inApp s <$> quitActor) (actorIDs s)
     halt s
 
 toggleDone :: UID -> AppState -> EventM Name (Next AppState)
@@ -126,7 +102,7 @@ doUIAction RotR s = continue case currAction s of
 doUIAction RotL' s = continue $ s {currResource = prev . currResource $ s}
 doUIAction RotR' s = continue $ s {currResource = next . currResource $ s}
 doUIAction PlayerL s = continue if changingPlayers s
-    then s {myActorIDs = etator $ myActorIDs s}
+    then s {actorIDs = etator $ actorIDs s}
     else s
 doUIAction PlayerR s = continue if changingPlayers s
     then s {actorIDs = rotate $ actorIDs s}

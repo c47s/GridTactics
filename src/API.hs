@@ -1,8 +1,22 @@
 -- {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 
 module API
     ( API
     , api
+
+    , getActor
+    , quitActor
+    , look
+    , act
+    , delAct
+    , getDone
+    , setDone
+    , getActorIDs
+    , actorNames
+    , newActor
+    , getNumDone
+
     , Config (..)
     , runServer
     ) where
@@ -16,6 +30,8 @@ import           Relude
 import           Servant
 import           Util
 import           WebInstances ()
+import           Servant.Client
+import           Servant.API.Flatten
 
 
 
@@ -86,8 +102,8 @@ hView aID _conf = doState do
     gets $ view (vision $ lookupActor aID w) (findActor aID w)
 
 hPostAct :: (World w) => UID -> Config -> IORef w -> Action -> Handler NoContent
-hPostAct aID _conf ref act = stateToIO ref do
-    modify $ updateActor (pushAct act) aID
+hPostAct aID _conf ref a = stateToIO ref do
+    modify $ updateActor (pushAct a) aID
     return NoContent
 
 hDelAct :: (World w) => UID -> Config -> IORef w -> Handler NoContent
@@ -142,6 +158,28 @@ hActors conf ref = hUIDs conf ref
 hAPI :: (World w) => Config -> IORef w -> Server API
 hAPI conf ref = hActor conf ref
   :<|> hActors conf ref
+
+
+
+-- | Generalize API client actions by converting ClientErrors to runtime errors,
+-- and getting the environment using ReaderT.
+clientToReader :: (MonadIO m) => ClientM a -> ReaderT ClientEnv m a
+clientToReader cl = (either (error . show) id <$>) . liftIO . runClientM cl =<< ask
+
+getActor :: (MonadIO m) => UID -> ReaderT ClientEnv m Actor
+quitActor :: MonadIO m => UID -> ReaderT ClientEnv m NoContent
+look :: (MonadIO m) => UID -> ReaderT ClientEnv m [[Square]]
+act :: (MonadIO m) => UID -> Action -> ReaderT ClientEnv m NoContent
+delAct :: (MonadIO m) => UID -> ReaderT ClientEnv m NoContent
+getDone :: (MonadIO m) => UID -> ReaderT ClientEnv m Bool
+setDone :: (MonadIO m) => UID -> Bool -> ReaderT ClientEnv m NoContent
+getActorIDs :: (MonadIO m) => ReaderT ClientEnv m [UID]
+actorNames :: (MonadIO m) => ReaderT ClientEnv m [Text]
+newActor :: (MonadIO m) => Text -> ReaderT ClientEnv m UID
+getNumDone :: (MonadIO m) => ReaderT ClientEnv m Int
+getActor :<|> quitActor :<|> look :<|> act :<|> delAct :<|> getDone :<|> setDone
+    :<|> getActorIDs :<|> actorNames :<|> newActor :<|> getNumDone 
+    = hoistClient (flatten api) clientToReader $ client $ flatten api
 
 
 
