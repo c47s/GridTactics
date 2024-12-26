@@ -16,6 +16,7 @@ module Mechanics
 
     , UID (..)
     , Actor (..)
+    , vision
     , pushAct
 
     , Coords
@@ -38,9 +39,10 @@ import           Data.Bool.HT (if')
 import           Data.Composition
 import           Data.Map.Merge.Strict
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import qualified Deque.Lazy as D
 import           Deque.Lazy (Deque)
-import           Prelude (until)
+import           Prelude (maximum, minimum, until)
 import           Relude
 import           Relude.Unsafe ((!!))
 import           System.Random
@@ -56,7 +58,7 @@ data Entity = Entity
   , ename :: Maybe Text
   , health :: Int
   , contents :: Loot
-  } deriving stock (Show, Generic)
+  } deriving stock (Eq, Show, Generic)
 
 type Square = Maybe Entity
 
@@ -151,10 +153,15 @@ data Actor = Actor
   { aname :: Text
   , coords :: Coords
   , range :: Int -- Shooting & throwing distance
-  , vision :: Int -- Seeing distance
+  , baseVision :: Int -- Seeing distance (when alive!)
   , queue :: Deque Action
   , done :: Bool -- Player is done entering actions
   } deriving stock (Eq, Generic)
+
+vision :: (World w) => w -> Actor -> Int
+vision w a = if actorAlive w a
+  then baseVision a
+  else 0
 
 pushAct :: Action -> Actor -> Actor
 pushAct actn a = a {queue = D.cons actn (queue a)}
@@ -223,7 +230,7 @@ data UndirAction
   deriving stock (Eq, Ord, Enum, Bounded, Show, Generic)
 
 cost :: Action -> Int
-cost (Dir Move _)      = 1
+cost (Dir Move _)      = 0
 cost (Dir Shoot _)     = 1
 cost (Dir (Throw _) _) = 0
 cost (Dir Grab _)      = 1
@@ -232,7 +239,7 @@ cost (Undir Die)       = 0
 cost (Undir HealMe)    = 3
 cost (Undir ShootMe)   = -1
 cost (Undir UpRange)   = 3
-cost (Undir UpVision)  = 3
+cost (Undir UpVision)  = 0
 cost (Undir Wait)      = 0
 
 getDir :: Action -> Maybe Direction
@@ -248,22 +255,23 @@ getDir _ = Nothing
 --   and a list of all empty squares,
 --   and a StdGen.
 class World w where
-  mkWorld :: StdGen -> Int -> w -- Given a StdGen and the desired size, make a World.
-  splitGen :: State w StdGen -- Get a StdGen by splitting the World's internal StdGen
-  empties :: w -> [Coords] -- All empty squares
-  actors :: w -> [UID] -- All actors
+  mkWorld :: StdGen -> Int -> w -- ^ Given a StdGen and the desired size, make a World.
+  splitGen :: State w StdGen -- ^ Get a StdGen by splitting the World's internal StdGen
+  empties :: w -> [Coords] -- ^ All empty squares
+  actors :: w -> [UID] -- ^ All actors
+  wrapCoords :: w -> Coords -> Coords -- ^ Transform Coords into a canonical space. i.e. for a toroidal world, take modulus of each coordinate
   getSquare :: Coords -> w -> Square
   lookupActor :: UID -> w -> Actor
   updateActor :: (Actor -> Actor) -> UID -> w -> w
-  addActor :: Actor -> State w UID -- Register an Actor WITHOUT assigning it to its square. Only exists to be implemented by World instances. Use register instead.
-  unaddActor :: UID -> w -> w -- Delete an Actor from actors. Only exists to be implemented by World instances. Use delActor instead.
+  _addActor :: Actor -> State w UID -- ^ Register an Actor WITHOUT assigning it to its square. Only exists to be implemented by World instances. Use register instead.
+  _unaddActor :: UID -> w -> w -- ^ Delete an Actor from actors. Only exists to be implemented by World instances. Use delActor instead.
   updateSquare :: (Square -> Square) -> Coords -> w -> w
   maxRange :: w -> Int
   maxVision :: w -> Int
 
   register :: Actor -> StateT w Maybe UID -- Register this Actor in the World.
   register a = do
-    aID <- hoist generalize $ addActor a
+    aID <- hoist generalize $ _addActor a
     let c = coords a
     s <- gets $ getSquare c
     e <- lift s
@@ -274,11 +282,14 @@ class World w where
   findActor :: UID -> w -> Coords
   findActor = coords .: lookupActor
 
+  actorAlive :: w -> Actor -> Bool
+  actorAlive w a = any ((> 0) . health) $ (`getSquare` w) $ coords a
+
   chActorPos :: Coords -> UID -> w -> w -- Point the Actor to a different Square
   chActorPos c = updateActor \a -> a {coords = c}
 
   delActor :: UID -> w -> w
-  delActor aID w = unaddActor aID . updateSquare (const Nothing) (findActor aID w) $ w
+  delActor aID w = _unaddActor aID . updateSquare (const Nothing) (findActor aID w) $ w
 
   actor :: w -> Entity -> Maybe Actor
   actor w e = flip lookupActor w <$> actorID e
@@ -290,6 +301,22 @@ class World w where
   -- Get a view of the World with given radius centered at the given Coords.
   view :: Int -> Coords -> w -> Grid
   view r c w = (`getSquare` w) <<$>> ([[bimap (+ x) (+ y) c | x <- [- r .. r]] | y <- [- r .. r]])
+
+  multiView :: [(Int, Coords)] -> w -> Grid
+  multiView views w = let
+      visibleCoords = Set.fromList $ views >>= (\(r, c) -> concat [[wrapCoords w $ bimap (+ x) (+ y) c | x <- [- r .. r]] | y <- [- r .. r]])
+      xs = Set.map (fst :: Coords -> Int) visibleCoords
+      ys = Set.map (snd :: Coords -> Int) visibleCoords
+      minX = minimum xs
+      minY = minimum ys
+      maxX = maximum xs
+      maxY = maximum ys
+      getIfVisible c = if c `Set.member` visibleCoords
+        then getSquare c w
+        else Nothing
+    in
+      getIfVisible <<$>> ([[(x, y) | x <- [minX .. maxX]] | y <- [minY .. maxY]])
+
 
   -- Place an Entity in a random empty Square. Fails if all Squares are full.
   scatter :: Entity -> StateT w Maybe Coords
@@ -434,8 +461,8 @@ class World w where
       Undir UpRange -> return $ updateActor (\act' -> act' {range = 
         clamp 0 (maxRange w) $ range act' + 1
         }) aID w
-      Undir UpVision -> return $ updateActor (\act' -> act' {vision = 
-        clamp 0 (maxVision w) $ vision act' + 1
+      Undir UpVision -> return $ updateActor (\act' -> act' {baseVision = 
+        baseVision act' + 1 -- clamp 0 (maxVision w) $ vision act' + 1
         }) aID w
       Undir Wait -> return w
 
@@ -477,4 +504,10 @@ class World w where
     modify $ until queuesEmpty runRound
     modify . giveAllLoot $ singloot Actions 1
     everyone <- gets actors
-    modify $ foldr (.) id $ (updateActor \a -> a {done = False}) <$> everyone
+    modify $ foldr (.) id $
+      ( \aID w -> updateActor (\a -> if actorAlive w a
+            then a {done = False}
+            else a)
+          aID w
+      )
+      <$> everyone

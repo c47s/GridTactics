@@ -1,4 +1,5 @@
 -- {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveAnyClass            #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 
 module API
@@ -16,22 +17,26 @@ module API
     , actorNames
     , newActor
     , getNumDone
+    , multiLook
+    , getConfig
 
     , Config (..)
     , runServer
     ) where
 
 import           Control.Monad.Except
-import qualified Deque.Lazy as D 
+import           Data.Aeson 
+import qualified Deque.Lazy as D
 import           Mechanics
 import           Network.Wai.Handler.Warp
 import           Network.Wai.Logger (withStdoutLogger)
 import           Relude
 import           Servant
+import           Servant.API.Flatten
+import           Servant.Client
 import           Util
 import           WebInstances ()
-import           Servant.Client
-import           Servant.API.Flatten
+
 
 
 
@@ -58,6 +63,7 @@ type ActorsAPI = UIDsAPI
             :<|> NamesAPI
             :<|> NewAPI
             :<|> NumDoneAPI
+            :<|> MultiViewAPI
 
 type UIDsAPI = Get '[JSON] [UID]
 
@@ -69,8 +75,14 @@ type NewAPI = "new"
 
 type NumDoneAPI = "done" :> Get '[JSON] Int
 
+type MultiViewAPI = "view"
+    :> ReqBody '[JSON] [UID] :> Get '[JSON] Grid
+
+type ConfigAPI = Get '[JSON] Config
+
 type API = "actor"  :> ActorAPI
       :<|> "actors" :> ActorsAPI
+      :<|> "config" :> ConfigAPI
 
 api :: Proxy API
 api = Proxy
@@ -80,7 +92,10 @@ api = Proxy
 data Config = Config
     { pawnTemplate :: Entity
     , actorTemplate :: Actor
+    , pawnsPerClient :: Int
     }
+    deriving stock (Eq, Generic)
+    deriving anyclass (FromJSON, ToJSON)
 
 
 
@@ -99,7 +114,7 @@ hDelActor aID _conf = doState do
 hView :: (World w) => UID -> Config -> IORef w -> Server ViewAPI
 hView aID _conf = doState do
     w <- get
-    gets $ view (vision $ lookupActor aID w) (findActor aID w)
+    gets $ view (vision w $ lookupActor aID w) (findActor aID w)
 
 hPostAct :: (World w) => UID -> Config -> IORef w -> Action -> Handler NoContent
 hPostAct aID _conf ref a = stateToIO ref do
@@ -143,6 +158,11 @@ hNew conf ref name' = do
 hNumDone :: (World w) => Config -> IORef w -> Server NumDoneAPI
 hNumDone _conf = doState $ gets numDone
 
+hMultiView :: (World w) => Config -> IORef w -> Server MultiViewAPI
+hMultiView _conf ref aIDs = stateToIO ref do
+    w <- get
+    return $ multiView ((\aID -> (vision w $ lookupActor aID w, findActor aID w)) <$> aIDs) w
+
 hActor :: (World w) => Config -> IORef w -> Server ActorAPI
 hActor conf ref aID = hActorSelf aID conf ref
             :<|> hView aID conf ref
@@ -154,10 +174,15 @@ hActors conf ref = hUIDs conf ref
      :<|> hNames conf ref
      :<|> hNew conf ref
      :<|> hNumDone conf ref
+     :<|> hMultiView conf ref
+
+hConfig :: Config -> Server ConfigAPI
+hConfig = return
 
 hAPI :: (World w) => Config -> IORef w -> Server API
 hAPI conf ref = hActor conf ref
   :<|> hActors conf ref
+  :<|> hConfig conf
 
 
 
@@ -177,8 +202,10 @@ getActorIDs :: (MonadIO m) => ReaderT ClientEnv m [UID]
 actorNames :: (MonadIO m) => ReaderT ClientEnv m [Text]
 newActor :: (MonadIO m) => Text -> ReaderT ClientEnv m UID
 getNumDone :: (MonadIO m) => ReaderT ClientEnv m Int
+multiLook :: (MonadIO m) => [UID] -> ReaderT ClientEnv m [[Square]]
+getConfig :: (MonadIO m) => ReaderT ClientEnv m Config
 getActor :<|> quitActor :<|> look :<|> act :<|> delAct :<|> getDone :<|> setDone
-    :<|> getActorIDs :<|> actorNames :<|> newActor :<|> getNumDone 
+    :<|> getActorIDs :<|> actorNames :<|> newActor :<|> getNumDone :<|> multiLook :<|> getConfig
     = hoistClient (flatten api) clientToReader $ client $ flatten api
 
 

@@ -42,10 +42,12 @@ instance World SeqWorld where
   empties = toList . empties'
   
   actors = fmap UID . IM.keys . actors'
+
+  wrapCoords w = wrap (width w)
   
   -- index is justified because wrap forces the Coords within the index range of worldMap
   getSquare c w = flip Seq.index x . flip Seq.index y $ worldMap w
-    where (x, y) = wrap (width w) c
+    where (x, y) = wrapCoords w c
 
   -- fromJust is justified because other functions should only be able to get valid UIDs from a World.
   -- As long as they aren't constructing their own UIDs
@@ -54,13 +56,13 @@ instance World SeqWorld where
 
   updateActor f aID w = w {actors' = IM.adjust f (unwrapUID aID) . actors' $ w}
 
-  addActor a = do
+  _addActor a = do
     aID <- gets nextUID
     modify \w -> w {nextUID = aID + 1}
     modify \w -> w {actors' = IM.insert aID a $ actors' w}
     return $ UID aID
 
-  unaddActor (UID aID) w = w {actors' = IM.delete aID $ actors' w}
+  _unaddActor (UID aID) w = w {actors' = IM.delete aID $ actors' w}
 
   updateSquare f c w = (\w' -> w' {empties' = (
     if passable $ getSquare c w'

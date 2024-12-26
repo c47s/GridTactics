@@ -3,12 +3,16 @@ module TUI
     , AppState(..)
     , currActorID
     , nextActorID
+    , selfAttr
+    , friendlyAttr
+    , hostileAttr
     , UIAction(..)
     , Name(..)
     , Resource(..)
     , singloot
     ) where
 
+import           Brick.AttrMap
 import           Brick.Types
 import           Brick.Widgets.Border
 import           Brick.Widgets.Center
@@ -34,12 +38,14 @@ data AppState = AppState
     , currAction :: Action
     , currResource :: Resource
     , changingPlayers :: Bool
+    , viewingMap :: Bool
     , keybinds :: Bimap Key UIAction
 
     -- Cache
     , currActor :: Actor
     , nextActor :: Actor
     , currView :: Grid
+    , currMap :: Grid
     , currDone :: Bool
     , currNumDone :: Int
     , currNames :: [Text]
@@ -51,6 +57,15 @@ currActorID = fromJust . (Seq.!? 0) . actorIDs
 nextActorID :: AppState -> UID
 nextActorID = fromJust . (Seq.!? 0) . rotate . actorIDs
 
+
+selfAttr :: AttrName
+selfAttr = "selfAttr"
+
+friendlyAttr :: AttrName
+friendlyAttr = "friendlyAttr"
+
+hostileAttr :: AttrName
+hostileAttr = "hostileAttr"
 
 
 data UIAction
@@ -66,6 +81,8 @@ data UIAction
     | PlayerR
     | Yes
     | No
+    | ViewMap
+    | SwitchTo UID
     | ToggleDone
     | Quit
     | SubmAction
@@ -84,11 +101,21 @@ dirActBtn = Btn . SelDirAct
 
 
 
-grid2Table :: [[Square]] -> Table Name
-grid2Table = table . reverse . fmap (fmap renderSquare)
+grid2Table :: AppState -> [[Square]] -> Table Name
+grid2Table s = table . reverse . fmap (fmap $ renderSquare s)
 
-renderSquare :: Square -> Widget Name
-renderSquare = vLimit 2 . hLimit 5 . center . vBox . fmap txt . sq2Texts
+renderSquare :: AppState -> Square -> Widget Name
+renderSquare s sq =
+    ( case sq of
+        Nothing -> id
+        Just (Entity Nothing _ _ _) -> id
+        Just (Entity (Just aID) _ _ _) -> if aID `elem` actorIDs s
+            then if aID == currActorID s
+                then withAttr selfAttr
+                else clickable (Btn $ SwitchTo aID) . withAttr friendlyAttr
+            else withAttr hostileAttr
+    )
+    . vLimit 2 . hLimit 5 . center . vBox . fmap txt . sq2Texts $ sq
 
 -- A list of lines to display
 sq2Texts :: Square -> [Text]
@@ -150,7 +177,6 @@ draw :: AppState -> [Widget Name]
 draw s = let
     me = currActor s
     mySq = middle . middle $ currView s
-    nextA = nextActor s
 
     dispBind = key2Text . (keybinds s Bap.!>)
 
@@ -160,7 +186,7 @@ draw s = let
             else dispBind ToggleDone <> ": End Turn"
         , hBorder
         , txtWrap $ show (currNumDone s) <> "/" <> show (length $ currNames s)
-            <> " players are done"
+            <> " pawns are done"
         ]
 
     queueBox = borderWithLabel (txt "Action Plan")
@@ -168,7 +194,7 @@ draw s = let
             (txtWrap "Nothing Planned (Yet!)")
         . fmap (txtWrap . act2Text) . reverse . toList . queue $ me))
 
-    worldTable = renderTable . grid2Table $ currView s
+    worldTable = renderTable . grid2Table s $ currView s
 
     dispDActCost actn = clickable (dirActBtn actn) . txt $ show (cost (Dir actn N))
     dispUActCost actn = clickable (undirActBtn actn) . txt $ show (cost (Undir actn))
@@ -232,10 +258,17 @@ draw s = let
         , txtWrap $ dispBind SubmAction <> ": Plan selected action"
         , txtWrap $ dispBind DelAction <> ": Delete last action"
         ]
+    
+    mapTable = renderTable . grid2Table s $ currMap s
 
     centerContent = vBox . fmap hCenter $
         [ txt ("You are " <> aname me)
-        , worldTable
+        , if viewingMap s
+            then txt "Press M to exit map"
+            else txt "Press M to view map"
+        , if viewingMap s
+            then mapTable
+            else worldTable
         , inventory
         , selectedAct
         ]
@@ -247,12 +280,12 @@ draw s = let
         , hCenter centerContent
         , hLimitPercent sbarWidthPercent . hCenter $ rSidebar
         ]
-    
+
     playerSwitchScreen = vCenter . vBox . fmap hCenter $
-        [ txt $ "Ready, " <> aname nextA <> "?"
+        [ txt $ "Ready, " <> aname me <> "?"
         , txt $ "(" <> dispBind Yes <> "/" <> dispBind No <> ")"
-        , txt $ "Press " <> dispBind PlayerR <> " for next player"
-        , txt $ "Press " <> dispBind PlayerL <> " for previous player"
+        , txt $ "Press " <> dispBind PlayerR <> " for next pawn"
+        , txt $ "Press " <> dispBind PlayerL <> " for previous pawn"
         ]
     
     in  [

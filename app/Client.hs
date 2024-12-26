@@ -10,10 +10,11 @@ import           Control.Monad.Except
 import qualified Data.Bimap as Bap
 import qualified Data.Text as T
 import           Graphics.Vty
+import           Graphics.Vty as V hiding (Default)
 import           GridTactics hiding (World(..))
 import           Network.HTTP.Client
 import           Relude
-import           Relude.Extra.Enum (prev, next)
+import           Relude.Extra.Enum (next, prev)
 import           Servant.Client
 import           System.Console.Haskeline
 import           System.Random hiding (next)
@@ -33,7 +34,11 @@ gtApp = App
     , appChooseCursor = neverShowCursor
     , appHandleEvent = handleEvent
     , appStartEvent = startEvent
-    , appAttrMap = const $ attrMap defAttr []
+    , appAttrMap = const $ attrMap defAttr
+        [ (selfAttr, bg V.blue)
+        , (friendlyAttr, bg V.green)
+        , (hostileAttr, bg V.red)
+        ]
     }
 
 selAction :: Action -> AppState -> AppState
@@ -51,16 +56,18 @@ selDirAct a s = s & case currAction s of
 -- | Grab and cache info from the server
 updateFromServer :: AppState -> EventM Name AppState
 updateFromServer s = do
-    currActor' <- inApp s $ getActor $ currActorID s
-    nextActor' <- inApp s $ getActor $ nextActorID s
-    currView'  <- inApp s $ look     $ currActorID s
-    currDone'  <- inApp s $ getDone  $ currActorID s
+    currActor' <- inApp s $ getActor  $ currActorID s
+    nextActor' <- inApp s $ getActor  $ nextActorID s
+    currView'  <- inApp s $ look      $ currActorID s
+    currMap'   <- inApp s $ multiLook $ toList $ actorIDs s
+    currDone'  <- inApp s $ getDone   $ currActorID s
     currNumDone' <- inApp s getNumDone
     currNames' <- inApp s actorNames
     return s
         { currActor = currActor'
         , nextActor = nextActor'
         , currView = currView'
+        , currMap = currMap'
         , currDone = currDone'
         , currNumDone = currNumDone'
         , currNames = currNames'
@@ -101,16 +108,15 @@ doUIAction RotR s = continue case currAction s of
     _ -> s
 doUIAction RotL' s = continue $ s {currResource = prev . currResource $ s}
 doUIAction RotR' s = continue $ s {currResource = next . currResource $ s}
-doUIAction PlayerL s = continue if changingPlayers s
+doUIAction PlayerL s = continue' if True -- changingPlayers s
     then s {actorIDs = etator $ actorIDs s}
-    else s
-doUIAction PlayerR s = continue if changingPlayers s
+    else s {changingPlayers = True}
+doUIAction PlayerR s = continue' if True --changingPlayers s
     then s {actorIDs = rotate $ actorIDs s}
     else s {changingPlayers = True}
-doUIAction Yes s = continue $ if changingPlayers s
+doUIAction Yes s = continue' $ if changingPlayers s
     then s
-        { actorIDs = rotate $ actorIDs s
-        , currAction = Undir Wait
+        { currAction = Undir Wait
         , currResource = Actions
         , changingPlayers = False
         }
@@ -120,6 +126,8 @@ doUIAction No s = continue $ if changingPlayers s
             , actorIDs = rotateTo (currActorID s) $ actorIDs s
             }
     else s
+doUIAction ViewMap s = continue' $ s {viewingMap = not . viewingMap $ s}
+doUIAction (SwitchTo aID) s = continue' $ s {actorIDs = rotateTo aID $ actorIDs s}
 doUIAction ToggleDone s = toggleDone (currActorID s) s
 doUIAction SubmAction s = inApp s (act (currActorID s) (currAction s)) >> continue' s
 doUIAction DelAction s = inApp s (delAct $ currActorID s) >> continue' s
@@ -165,6 +173,7 @@ defaultKeybinds = Bap.fromList
     , (KChar '.', PlayerR)
     , (KChar 'y', Yes)
     , (KChar 'n', No)
+    , (KChar 'M', ViewMap)
     , (KChar 'd', ToggleDone)
     , (KChar 'q', Quit)
     , (KEnter, SubmAction)
@@ -195,20 +204,6 @@ main = runInputT defaultSettings do
         outputStrLn "Enter port:"
         getInputLineWithInitial "> " ("42069","")
     
-    outputStrLn ""
-    initName <- untilJustAnd nonBlank do
-        g1 <- newStdGen
-        g2 <- newStdGen
-        g3 <- newStdGen
-        g4 <- newStdGen
-        g5 <- newStdGen
-        let suggestedName = T.takeWhile (/= ' ') $ mixText g1
-                (mixText g2 (randElem g3 frenchNames) (randElem g4 frenchNames))
-                (randElem g5 frenchNames)
-
-        outputStrLn "Enter player name:"
-        getInputLineWithInitial "> " (toString suggestedName,"")
-
     manager <- liftIO $ newManager defaultManagerSettings
 
     let baseUrl = BaseUrl Http (fromString hostName) port ""
@@ -217,18 +212,38 @@ main = runInputT defaultSettings do
 
     outputStrLn ""
     outputStrLn "Contacting server..."
-    initActorID <- runReaderT (newActor $ fromString initName) env
+    config <- runReaderT getConfig env
+    
+    g1 <- newStdGen
+    g2 <- newStdGen
+    let baseName1 = randElem g1 frenchNames
+    let baseName2 = randElem g2 frenchNames
+    initActorIDs <- forM [1..(pawnsPerClient config)] $ \n -> do
+        outputStrLn ""
+        newName <- untilJustAnd nonBlank do
+            g3 <- newStdGen
+            g4 <- newStdGen
+            g5 <- newStdGen
+            let suggestedName = T.takeWhile (/= ' ') $ mixText g3 baseName1 $
+                    mixText g4 baseName2 (randElem g5 frenchNames)
+                    
+
+            outputStrLn ("Enter pawn " <> show n <> " name:")
+            getInputLineWithInitial "> " (toString suggestedName,"")
+        runReaderT (newActor $ fromString newName) env
 
     let initialState = AppState
             { clientEnv = env
             , keybinds = defaultKeybinds
-            , actorIDs = one initActorID
+            , actorIDs = fromList initActorIDs
             , currAction = Undir Wait
             , currResource = Actions
             , changingPlayers = True
+            , viewingMap = False
             , currActor = error "currActor not yet initialized"
             , nextActor = error "nextActor not yet initialized"
             , currView = error "currView not yet initialized"
+            , currMap = error "currMap not yet initialized"
             , currDone = error "currDone not yet initialized"
             , currNumDone = error "currNumDone not yet initialized"
             , currNames = error "currNames not yet initialized"

@@ -23,6 +23,11 @@ main = runInputT defaultSettings do
 
     let constrange = check ("Must be at most " ++ show ((wSize - 1) `div` 2))
             (<= (wSize - 1) `div` 2)
+    
+    outputStrLn ""
+    pawnsPerClient' <- untilValidAnd gr0 do
+        outputStrLn "Enter number of pawns per client:"
+        getInputLineWithInitial "> " ("8", "")
 
     outputStrLn ""
     fillPortion <- untilValidAnd
@@ -94,10 +99,11 @@ main = runInputT defaultSettings do
                 { aname = "TEMPLATE"
                 , coords = (0,0)
                 , range = startRange
-                , vision = startVision
+                , baseVision = startVision
                 , queue = fromList []
                 , done = False
                 }
+            , pawnsPerClient = pawnsPerClient'
             }
 
     outputStrLn "\nStarting Server..."
