@@ -38,6 +38,8 @@ gtApp = App
         [ (selfAttr, bg V.blue)
         , (friendlyAttr, bg V.green)
         , (hostileAttr, bg V.red)
+        , (wallAttr, bg V.black)
+        , (fogAttr, V.white `Brick.on` V.white)
         ]
     }
 
@@ -156,7 +158,6 @@ defaultKeybinds = Bap.fromList
     , (KChar 't', SelDirAct (Throw mempty))
     , (KChar 'g', SelDirAct Grab)
     , (KChar 'h', SelDirAct Heal)
-    , (KChar 'z', SelUndirAct Die)
     , (KChar 'H', SelUndirAct HealMe)
     , (KChar 'S', SelUndirAct ShootMe)
     , (KChar 'r', SelUndirAct UpRange)

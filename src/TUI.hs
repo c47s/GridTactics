@@ -6,6 +6,8 @@ module TUI
     , selfAttr
     , friendlyAttr
     , hostileAttr
+    , wallAttr
+    , fogAttr
     , UIAction(..)
     , Name(..)
     , Resource(..)
@@ -67,6 +69,12 @@ friendlyAttr = "friendlyAttr"
 hostileAttr :: AttrName
 hostileAttr = "hostileAttr"
 
+wallAttr :: AttrName
+wallAttr = "wallAttr"
+
+fogAttr :: AttrName
+fogAttr = "fogAttr"
+
 
 data UIAction
     = SelUndirAct UndirAction
@@ -108,30 +116,63 @@ renderSquare :: AppState -> Square -> Widget Name
 renderSquare s sq =
     ( case sq of
         Nothing -> id
-        Just (Entity Nothing _ _ _) -> id
+        Just (Entity Nothing (Just "?") _ _) -> withAttr fogAttr
+        Just (Entity Nothing _ _ _) -> if hittable sq
+            then withAttr wallAttr
+            else id
         Just (Entity (Just aID) _ _ _) -> if aID `elem` actorIDs s
             then if aID == currActorID s
                 then withAttr selfAttr
                 else clickable (Btn $ SwitchTo aID) . withAttr friendlyAttr
             else withAttr hostileAttr
     )
-    . vLimit 2 . hLimit 5 . center . vBox . fmap txt . sq2Texts $ sq
+    . vLimit 2 . hLimit 5 . center . vBox . sq2Txts $ sq
 
--- A list of lines to display
-sq2Texts :: Square -> [Text]
-sq2Texts Nothing = [" "," "]
-sq2Texts (Just (Entity _ mname hp cont)) =
-    [fromMaybe "" mname, show hp <> "/" <> show (hp + res Hearts cont)]
+hpInner :: Int -> Text
+hpInner hp
+    | hp <= 2   = " "
+    | otherwise = "|"
+
+hpOuter :: Int -> Text
+hpOuter hp
+    | hp <= 0   = " "
+    | hp == 1   = "."
+    | hp <= 3   = "-"
+    | hp <= 5   = "="
+    | otherwise = "|"
+
+hp2Text :: Int -> Text
+hp2Text hp = hpOuter hp <> hpInner hp
+          <> (if hp > 0 then show hp else "")
+          <> hpInner hp <> hpOuter hp
+
+sq2Txts :: Square -> [Widget a]
+sq2Txts Nothing = [txt " ",txt " "]
+sq2Txts (Just (Entity _ mname hp cont)) =
+    [ maybe (txt "") (center . txt) mname
+    , txt $ hp2Text hp
+    , center . txt $ loot2TextShort cont
+    ]
 
 resType2Text :: Resource -> Text
-resType2Text Actions = "Action Points"
-resType2Text Hearts  = "Health Chunks"
+resType2Text Actions = "Juice"
+resType2Text Hearts  = "Scrap"
+
+resType2TextShort :: Resource -> Text
+resType2TextShort Actions = "J"
+resType2TextShort Hearts  = "S"
 
 res2Text :: Resource -> Int -> Text
 res2Text r n = show n <> " " <> resType2Text r
 
+res2TextShort :: Resource -> Int -> Text
+res2TextShort r n = show n <> resType2TextShort r
+
 list2Text :: [Text] -> Text
 list2Text = maybe "Nothing" nempty2Text . nonEmpty
+
+list2TextShort :: [Text] -> Text
+list2TextShort = maybe "-" (T.concat . intersperse " " . toList) . nonEmpty
 
 nempty2Text :: NonEmpty Text -> Text
 nempty2Text xs
@@ -140,7 +181,10 @@ nempty2Text xs
     | otherwise      = (T.concat . intersperse ", " $ tail xs) <> " and " <> head xs
 
 loot2Text :: Loot -> Text
-loot2Text = list2Text . toList . Map.mapWithKey res2Text . Map.filter (> 0) . unLoot
+loot2Text = list2Text . toList . Map.mapWithKey res2Text . Map.filter (/= 0) . unLoot
+
+loot2TextShort :: Loot -> Text
+loot2TextShort = list2TextShort . toList . Map.mapWithKey res2TextShort . Map.filter (/= 0) . unLoot
 
 dir2Text :: Mechanics.Direction -> Text
 dir2Text N = "↑"
@@ -196,8 +240,8 @@ draw s = let
 
     worldTable = renderTable . grid2Table s $ currView s
 
-    dispDActCost actn = clickable (dirActBtn actn) . txt $ show (cost (Dir actn N))
-    dispUActCost actn = clickable (undirActBtn actn) . txt $ show (cost (Undir actn))
+    dispDActCost actn = clickable (dirActBtn actn) . txt $ loot2TextShort (cost (Dir actn N))
+    dispUActCost actn = clickable (undirActBtn actn) . txt $ loot2TextShort (cost (Undir actn))
 
     dispDActBinds acts =
         [
@@ -223,13 +267,14 @@ draw s = let
         (renderTable . alignRight 1 . rowBorders False . columnBorders False . surroundingBorder False . table $
             [txt "_: Action", txt "Cost"]
             :  dispDActBinds universe
-            ++ dispUActBinds (universe // Die)
+            ++ dispUActBinds universe
         )
     
     inventory = txt ("Your Inventory: " <> loot2Text (maybeToMonoid (contents <$> mySq)))
 
     selectedAct = vBox . fmap hCenter $
         [ txt ("Selected Action: " <> act2Text (currAction s))
+        , txt ("Cost: " <> loot2Text (cost $ currAction s))
         , case currAction s of
             Dir (Throw _) _ ->
                 txt ("Selected Resource: " <> resType2Text (currResource s))

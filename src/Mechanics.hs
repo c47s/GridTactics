@@ -221,26 +221,24 @@ instance Bounded DirAction where
   maxBound = Heal
 
 data UndirAction
-  = Die
-  | HealMe
+  = HealMe
   | ShootMe
   | UpRange
   | UpVision
   | Wait
   deriving stock (Eq, Ord, Enum, Bounded, Show, Generic)
 
-cost :: Action -> Int
-cost (Dir Move _)      = 0
-cost (Dir Shoot _)     = 1
-cost (Dir (Throw _) _) = 0
-cost (Dir Grab _)      = 1
-cost (Dir Heal _)      = 2
-cost (Undir Die)       = 0
-cost (Undir HealMe)    = 3
-cost (Undir ShootMe)   = -1
-cost (Undir UpRange)   = 3
-cost (Undir UpVision)  = 0
-cost (Undir Wait)      = 0
+cost :: Action -> Loot
+cost (Dir Move _)      = mempty
+cost (Dir Shoot _)     = singloot Actions 1
+cost (Dir (Throw _) _) = mempty
+cost (Dir Grab _)      = singloot Actions 1
+cost (Dir Heal _)      = singloot Actions 1 <> singloot Hearts 2
+cost (Undir HealMe)    = singloot Actions 2 <> singloot Hearts 2
+cost (Undir ShootMe)   = singloot Actions (-1) <> singloot Hearts (-1)
+cost (Undir UpRange)   = singloot Actions 2
+cost (Undir UpVision)  = singloot Actions 3
+cost (Undir Wait)      = mempty
 
 getDir :: Action -> Maybe Direction
 getDir (Dir _ d) = Just d
@@ -313,7 +311,7 @@ class World w where
       maxY = maximum ys
       getIfVisible c = if c `Set.member` visibleCoords
         then getSquare c w
-        else Nothing
+        else Just (Entity Nothing (Just "?") 0 mempty)
     in
       getIfVisible <<$>> ([[(x, y) | x <- [minX .. maxX]] | y <- [minY .. maxY]])
 
@@ -405,22 +403,21 @@ class World w where
   heal :: Coords -> w -> Maybe w
   heal c w = do
       e <- getSquare c w
-      cont' <- contents e `without` singloot Hearts 1
-      return $ updateSquare (const . Just $ e {contents = cont', health = health e + 1}) c w
+      return $ updateSquare (const . Just $ e {health = health e + 1}) c w
   
   -- Dump Loot into a Square.
   putLoot :: Loot -> Coords -> w -> w
   putLoot l = putSquare $ Just (Entity Nothing Nothing 0 l)
 
-  spendActPts :: Int -> Coords -> w -> Maybe w
-  spendActPts n c w = do
+  spendLoot :: Loot -> Coords -> w -> Maybe w
+  spendLoot l c w = do
     let s = getSquare c w
     me <- s
-    cont' <- contents me `without` singloot Actions n
+    cont' <- contents me `without` l
     return $ updateSquare (fmap \e -> e {contents = cont'}) c w
 
   spendFor :: Action -> Coords -> w -> Maybe w
-  spendFor = spendActPts . cost
+  spendFor = spendLoot . cost
   
   doAct :: Action -> Coords -> w -> Maybe w
   doAct a c w = do
@@ -450,12 +447,6 @@ class World w where
           let grabbee = step d c
           grab grabbee c w
         Heal -> heal (step d c) w
-      Undir Die -> return
-        $ updateSquare (fmap \e -> e
-          { health = 0
-          , contents = singloot Actions $ cost (Undir Die)
-          }
-          ) c w
       Undir HealMe -> heal c w
       Undir ShootMe -> return $ hit c w
       Undir UpRange -> return $ updateActor (\act' -> act' {range = 
