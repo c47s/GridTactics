@@ -14,6 +14,7 @@ module API
     , getDone
     , setDone
     , getActorIDs
+    , getTurnOrder
     , actorNames
     , newActor
     , getNumDone
@@ -60,12 +61,15 @@ type ActAPI = "act" :>
 type DoneAPI = "done" :> Modify '[JSON] Bool
 
 type ActorsAPI = UIDsAPI
+            :<|> OrderAPI
             :<|> NamesAPI
             :<|> NewAPI
             :<|> NumDoneAPI
             :<|> MultiViewAPI
 
 type UIDsAPI = Get '[JSON] [UID]
+
+type OrderAPI = "order" :> Get '[JSON] [UID]
 
 type NamesAPI = "names" :> Get '[JSON] [Text]
 
@@ -146,6 +150,9 @@ hDone aID conf ref = hGetDone aID conf ref
 hUIDs :: (World w) => Config -> IORef w -> Server UIDsAPI
 hUIDs _conf = doState $ gets actors
 
+hOrder :: (World w) => Config -> IORef w -> Server OrderAPI
+hOrder _conf = doState $ gets turnOrder
+
 hNames :: (World w) => Config -> IORef w -> Server NamesAPI
 hNames _conf = doState $ gets $ \w -> aname . flip lookupActor w <$> actors w
 
@@ -171,6 +178,7 @@ hActor conf ref aID = hActorSelf aID conf ref
 
 hActors :: (World w) => Config -> IORef w -> Server ActorsAPI
 hActors conf ref = hUIDs conf ref
+     :<|> hOrder conf ref
      :<|> hNames conf ref
      :<|> hNew conf ref
      :<|> hNumDone conf ref
@@ -199,13 +207,15 @@ delAct :: (MonadIO m) => UID -> ReaderT ClientEnv m NoContent
 getDone :: (MonadIO m) => UID -> ReaderT ClientEnv m Bool
 setDone :: (MonadIO m) => UID -> Bool -> ReaderT ClientEnv m NoContent
 getActorIDs :: (MonadIO m) => ReaderT ClientEnv m [UID]
+getTurnOrder :: (MonadIO m) => ReaderT ClientEnv m [UID]
 actorNames :: (MonadIO m) => ReaderT ClientEnv m [Text]
 newActor :: (MonadIO m) => Text -> ReaderT ClientEnv m UID
 getNumDone :: (MonadIO m) => ReaderT ClientEnv m Int
 multiLook :: (MonadIO m) => [UID] -> ReaderT ClientEnv m [[Square]]
 getConfig :: (MonadIO m) => ReaderT ClientEnv m Config
 getActor :<|> quitActor :<|> look :<|> act :<|> delAct :<|> getDone :<|> setDone
-    :<|> getActorIDs :<|> actorNames :<|> newActor :<|> getNumDone :<|> multiLook :<|> getConfig
+    :<|> getActorIDs :<|> getTurnOrder :<|> actorNames :<|> newActor :<|> getNumDone
+    :<|> multiLook :<|> getConfig
     = hoistClient (flatten api) clientToReader $ client $ flatten api
 
 

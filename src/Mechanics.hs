@@ -46,7 +46,6 @@ import           Prelude (maximum, minimum, until)
 import           Relude
 import           Relude.Unsafe ((!!))
 import           System.Random
-import           System.Random.Shuffle
 import           Util
 
 
@@ -266,6 +265,8 @@ class World w where
   updateSquare :: (Square -> Square) -> Coords -> w -> w
   maxRange :: w -> Int
   maxVision :: w -> Int
+  turnOrder :: w -> [UID] -- ^ Order in which pawns will act next round
+  shuffleTurnOrder :: w -> w -- ^ Shuffle the turnOrder
 
   register :: Actor -> StateT w Maybe UID -- Register this Actor in the World.
   register a = do
@@ -485,9 +486,8 @@ class World w where
   
   runRound :: w -> w
   runRound = execState do
-        gen <- splitGen
-        everyone <- gets actors
-        modify (foldr (.) id $ popAct <$> shuffle' everyone (length everyone) gen)
+        order <- reverse <$> gets turnOrder
+        modify (foldr (.) id $ popAct <$> order)
 
   runTurn :: w -> w 
   runTurn = execState do
@@ -502,3 +502,4 @@ class World w where
           aID w
       )
       <$> everyone
+    modify shuffleTurnOrder

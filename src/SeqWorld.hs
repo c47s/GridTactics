@@ -11,6 +11,7 @@ import           Mechanics
 import           Relude
 import           Relude.Unsafe (fromJust)
 import           System.Random
+import           System.Random.Shuffle
 
 data SeqWorld = SeqWorld
   { gen' :: StdGen
@@ -18,6 +19,7 @@ data SeqWorld = SeqWorld
   , worldMap :: Seq (Seq Square)
   , empties' :: Set Coords
   , actors' :: IntMap Actor
+  , turnOrder' :: [UID]
   , nextUID :: Int
   }
 
@@ -31,6 +33,7 @@ instance World SeqWorld where
     , worldMap = fromList . replicate sz . fromList . replicate sz $ Nothing
     , empties' = fromList [(x,y) | x <- [0..sz - 1], y <- [0..sz - 1]]
     , actors' = IM.empty
+    , turnOrder' = []
     , nextUID = 0
     }
 
@@ -42,6 +45,13 @@ instance World SeqWorld where
   empties = toList . empties'
   
   actors = fmap UID . IM.keys . actors'
+
+  turnOrder = turnOrder'
+
+  shuffleTurnOrder = execState do
+    gen <- splitGen
+    everyone <- gets actors
+    modify \w -> w {turnOrder' = shuffle' everyone (length everyone) gen}
 
   wrapCoords w = wrap (width w)
   
@@ -60,9 +70,12 @@ instance World SeqWorld where
     aID <- gets nextUID
     modify \w -> w {nextUID = aID + 1}
     modify \w -> w {actors' = IM.insert aID a $ actors' w}
+    modify shuffleTurnOrder
     return $ UID aID
 
-  _unaddActor (UID aID) w = w {actors' = IM.delete aID $ actors' w}
+  _unaddActor (UID aID) = execState do
+    modify \w -> w {actors' = IM.delete aID $ actors' w}
+    modify shuffleTurnOrder
 
   updateSquare f c w = (\w' -> w' {empties' = (
     if passable $ getSquare c w'

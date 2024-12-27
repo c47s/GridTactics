@@ -65,6 +65,7 @@ updateFromServer s = do
     currDone'  <- inApp s $ getDone   $ currActorID s
     currNumDone' <- inApp s getNumDone
     currNames' <- inApp s actorNames
+    currOrder' <- inApp s getTurnOrder
     return s
         { currActor = currActor'
         , nextActor = nextActor'
@@ -73,6 +74,7 @@ updateFromServer s = do
         , currDone = currDone'
         , currNumDone = currNumDone'
         , currNames = currNames'
+        , currOrder = currOrder'
         }
 
 startEvent :: AppState -> EventM Name AppState
@@ -248,6 +250,7 @@ main = runInputT defaultSettings do
             , currDone = error "currDone not yet initialized"
             , currNumDone = error "currNumDone not yet initialized"
             , currNames = error "currNames not yet initialized"
+            , currOrder = error "currOrder not yet initialized"
             }
 
     outputStrLn ""

@@ -22,6 +22,7 @@ import           Brick.Widgets.Core
 import           Brick.Widgets.Table
 import qualified Data.Bimap as Bap
 import           Data.Bimap (Bimap)
+import           Data.List (elemIndex)
 import qualified Data.Map.Strict as Map
 import           Data.Maybe (fromJust)
 import qualified Data.Sequence as Seq
@@ -51,6 +52,7 @@ data AppState = AppState
     , currDone :: Bool
     , currNumDone :: Int
     , currNames :: [Text]
+    , currOrder :: [UID]
     }
 
 currActorID :: AppState -> UID
@@ -114,45 +116,43 @@ grid2Table s = table . reverse . fmap (fmap $ renderSquare s)
 
 renderSquare :: AppState -> Square -> Widget Name
 renderSquare s sq =
-    ( case sq of
-        Nothing -> id
-        Just (Entity Nothing (Just "?") _ _) -> withAttr fogAttr
-        Just (Entity Nothing _ _ _) -> if hittable sq
-            then withAttr wallAttr
-            else id
-        Just (Entity (Just aID) _ _ _) -> if aID `elem` actorIDs s
-            then if aID == currActorID s
-                then withAttr selfAttr
-                else clickable (Btn $ SwitchTo aID) . withAttr friendlyAttr
-            else withAttr hostileAttr
-    )
-    . vLimit 2 . hLimit 5 . center . vBox . sq2Txts $ sq
+        ( case sq of
+            Nothing -> id
+            Just (Entity Nothing (Just "?") _ _) -> withAttr fogAttr
+            Just (Entity Nothing _ _ _) -> if hittable sq
+                then withAttr wallAttr
+                else id
+            Just (Entity (Just aID) _ _ _) ->
+                if aID `elem` actorIDs s
+                    then if aID == currActorID s
+                        then withAttr selfAttr
+                        else clickable (Btn $ SwitchTo aID)
+                            . withAttr friendlyAttr
+                    else withAttr hostileAttr
+        )
+        . vLimit 2 . hLimit 5 . center . vBox . sq2Txts $ sq
+    where
 
-hpInner :: Int -> Text
-hpInner hp
-    | hp <= 2   = " "
-    | otherwise = "|"
-
-hpOuter :: Int -> Text
-hpOuter hp
-    | hp <= 0   = " "
-    | hp == 1   = "."
-    | hp <= 3   = "-"
-    | hp <= 5   = "="
-    | otherwise = "|"
-
-hp2Text :: Int -> Text
-hp2Text hp = hpOuter hp <> hpInner hp
-          <> (if hp > 0 then show hp else "")
-          <> hpInner hp <> hpOuter hp
-
-sq2Txts :: Square -> [Widget a]
-sq2Txts Nothing = [txt " ",txt " "]
-sq2Txts (Just (Entity _ mname hp cont)) =
-    [ maybe (txt "") (center . txt) mname
-    , txt $ hp2Text hp
-    , center . txt $ loot2TextShort cont
-    ]
+        sq2Txts :: Square -> [Widget Name]
+        sq2Txts Nothing = [txt " ",txt " "]
+        sq2Txts (Just (Entity mID mname hp cont)) =
+            [ if hp > 0
+                then maybe (txt "") (center . txt) mname
+                else txt ""
+            , hBox [showOrder mID, hpTxt]
+            , center . txt $ loot2TextShort cont
+            ]
+            where
+                showOrder :: Maybe UID -> Widget Name
+                showOrder Nothing = txt ""
+                showOrder (Just aID) = maybe (txt "?!")
+                        (padRight Max . txt . ("#" <>) . show . (+ 1)) $
+                        elemIndex aID (currOrder s)
+                
+                hpTxt :: Widget Name
+                hpTxt = if isJust $ (`elemIndex` currOrder s) =<< mID
+                    then center . txt $ "♥︎" <> show hp
+                    else txt ""
 
 resType2Text :: Resource -> Text
 resType2Text Actions = "Juice"
