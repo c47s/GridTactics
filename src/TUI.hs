@@ -136,22 +136,22 @@ renderSquare s sq =
         sq2Txts :: Square -> [Widget Name]
         sq2Txts Nothing = [txt " ",txt " "]
         sq2Txts (Just (Entity mID mname hp cont)) =
-            [ if hp > 0
-                then maybe (txt "") (center . txt) mname
-                else txt ""
+            [ if hp <= 0 && isJust ((`elemIndex` currOrder s) =<< mID)
+                then txt ""
+                else maybe (txt "") txt mname
             , hBox [showOrder mID, hpTxt]
-            , center . txt $ loot2TextShort cont
+            , loot2TxtShort cont
             ]
             where
                 showOrder :: Maybe UID -> Widget Name
                 showOrder Nothing = txt ""
                 showOrder (Just aID) = maybe (txt "?!")
-                        (padRight Max . txt . ("#" <>) . show . (+ 1)) $
+                        (txt . ("#" <>) . show . (+ 1)) $
                         elemIndex aID (currOrder s)
                 
                 hpTxt :: Widget Name
-                hpTxt = if isJust $ (`elemIndex` currOrder s) =<< mID
-                    then center . txt $ "♥︎" <> show hp
+                hpTxt = if hp > 0 || isJust ((`elemIndex` currOrder s) =<< mID)
+                    then padLeft Max . txt $ "♥︎" <> show hp
                     else txt ""
 
 resType2Text :: Resource -> Text
@@ -174,6 +174,10 @@ list2Text = maybe "Nothing" nempty2Text . nonEmpty
 list2TextShort :: [Text] -> Text
 list2TextShort = maybe "-" (T.concat . intersperse " " . toList) . nonEmpty
 
+list2TxtShort :: [Text] -> Widget Name
+list2TxtShort [] = txt ""
+list2TxtShort (t:ts) = hBox $ txt t : (padLeft Max . txt <$> ts)
+
 nempty2Text :: NonEmpty Text -> Text
 nempty2Text xs
     | length xs == 1 = head xs
@@ -185,6 +189,9 @@ loot2Text = list2Text . toList . Map.mapWithKey res2Text . Map.filter (/= 0) . u
 
 loot2TextShort :: Loot -> Text
 loot2TextShort = list2TextShort . toList . Map.mapWithKey res2TextShort . Map.filter (/= 0) . unLoot
+
+loot2TxtShort :: Loot -> Widget Name
+loot2TxtShort = list2TxtShort . toList . Map.mapWithKey res2TextShort . Map.filter (/= 0) . unLoot
 
 dir2Text :: Mechanics.Direction -> Text
 dir2Text N = "↑"
