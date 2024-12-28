@@ -95,6 +95,9 @@ data UIAction
     | SwitchTo UID
     | ToggleDone
     | Quit
+    | ClaimAllPawns
+    | RemovePawn
+    | DisownPawn
     | SubmAction
     | DelAction
     | Also UIAction -- ^ Bind another key to this action
@@ -152,7 +155,7 @@ renderSquare s sq =
                 hpTxt :: Widget Name
                 hpTxt = if hp > 0 || isJust ((`elemIndex` currOrder s) =<< mID)
                     then padLeft Max . txt $ "♥︎" <> show hp
-                    else txt ""
+                    else txt " "
 
 resType2Text :: Resource -> Text
 resType2Text Actions = "Juice"
@@ -211,10 +214,11 @@ act2Text actn = basicAct2Text actn
 basicAct2Text :: Action -> Text
 basicAct2Text (Dir (Throw _) _) = "Throw"
 basicAct2Text (Dir act _) = show act
-basicAct2Text (Undir HealMe) = "Heal Self"
-basicAct2Text (Undir ShootMe) = "Shoot Self"
-basicAct2Text (Undir UpRange) = "Upgrade Range"
-basicAct2Text (Undir UpVision) = "Upgrade Vision"
+basicAct2Text (Undir RepairMe)  = "Repair Self"
+basicAct2Text (Undir ShootMe) = "Scrap Self"
+basicAct2Text (Undir Recycle) = "Eat Scrap"
+basicAct2Text (Undir UpRange) = "+Range"
+basicAct2Text (Undir UpVision) = "+Vision"
 basicAct2Text (Undir act) = show act
 
 key2Text :: Key -> Text
@@ -248,7 +252,9 @@ draw s = let
     worldTable = renderTable . grid2Table s $ currView s
 
     dispDActCost actn = clickable (dirActBtn actn) . txt $ loot2TextShort (cost (Dir actn N))
-    dispUActCost actn = clickable (undirActBtn actn) . txt $ loot2TextShort (cost (Undir actn))
+    dispUActCost actn = clickable (undirActBtn actn) . txt $
+            loot2TextShort (cost $ Undir actn)
+            <> if actn == ShootMe then " ♥︎1" else ""
 
     dispDActBinds acts =
         [
@@ -282,6 +288,9 @@ draw s = let
     selectedAct = vBox . fmap hCenter $
         [ txt ("Selected Action: " <> act2Text (currAction s))
         , txt ("Cost: " <> loot2Text (cost $ currAction s))
+        , if isRanged $ currAction s
+            then txt ("Range: " <> show (range me))
+            else emptyWidget
         , case currAction s of
             Dir (Throw _) _ ->
                 txt ("Selected Resource: " <> resType2Text (currResource s))

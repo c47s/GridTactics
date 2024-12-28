@@ -37,7 +37,7 @@ instance World SeqWorld where
     , nextUID = 0
     }
   
-  origin w = Just (0, 0)
+  origin _ = Just (0, 0)
   extent w = Just (width w - 1, width w - 1)
 
   splitGen = do

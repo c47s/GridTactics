@@ -28,6 +28,7 @@ module Mechanics
     , UndirAction (..)
     , cost
     , getDir
+    , isRanged
 
     , World (..)
     ) where
@@ -197,31 +198,38 @@ data Action
 data DirAction
   = Move
   | Shoot
+  | Blast
   | Throw Loot
   | Grab
-  | Heal
+  | Repair
+  | Build
   deriving stock (Eq, Ord, Show, Generic)
 
 instance Enum DirAction where
   fromEnum Move      = 0
   fromEnum Shoot     = 1
-  fromEnum (Throw _) = 2
-  fromEnum Grab      = 3
-  fromEnum Heal      = 4
+  fromEnum Blast     = 2
+  fromEnum (Throw _) = 3
+  fromEnum Grab      = 4
+  fromEnum Repair      = 5
+  fromEnum Build     = 6
   toEnum 0 = Move
   toEnum 1 = Shoot
-  toEnum 2 = Throw mempty
-  toEnum 3 = Grab
-  toEnum 4 = Heal
-  toEnum n = toEnum (n `mod` 5)
+  toEnum 2 = Blast
+  toEnum 3 = Throw mempty
+  toEnum 4 = Grab
+  toEnum 5 = Repair
+  toEnum 6 = Build
+  toEnum n = toEnum (n `mod` 7)
 
 instance Bounded DirAction where
   minBound = Move
-  maxBound = Heal
+  maxBound = Build
 
 data UndirAction
-  = HealMe
+  = RepairMe
   | ShootMe
+  | Recycle
   | UpRange
   | UpVision
   | Wait
@@ -230,11 +238,14 @@ data UndirAction
 cost :: Action -> Loot
 cost (Dir Move _)      = mempty
 cost (Dir Shoot _)     = singloot Actions 1
+cost (Dir Blast _)     = singloot Actions 2 <> singloot Hearts 4
 cost (Dir (Throw _) _) = mempty
 cost (Dir Grab _)      = singloot Actions 1
-cost (Dir Heal _)      = singloot Actions 1 <> singloot Hearts 2
-cost (Undir HealMe)    = singloot Actions 2 <> singloot Hearts 2
-cost (Undir ShootMe)   = singloot Actions (-1) <> singloot Hearts (-1)
+cost (Dir Repair _)    = singloot Actions 2 <> singloot Hearts 1
+cost (Dir Build _)     = singloot Hearts 1
+cost (Undir RepairMe)  = singloot Actions 3 <> singloot Hearts 1
+cost (Undir ShootMe)   = singloot Actions (-1)
+cost (Undir Recycle)   = singloot Actions (-1) <> singloot Hearts 2
 cost (Undir UpRange)   = singloot Actions 2
 cost (Undir UpVision)  = singloot Actions 3
 cost (Undir Wait)      = mempty
@@ -243,6 +254,12 @@ getDir :: Action -> Maybe Direction
 getDir (Dir _ d) = Just d
 getDir _ = Nothing
 
+isRanged :: Action -> Bool
+isRanged (Undir _) = False
+isRanged (Dir Shoot _) = True
+isRanged (Dir Blast _) = True
+isRanged (Dir (Throw _) _) = True
+isRanged (Dir _ _) = False
 
 
 {- {- {- WORLD -} -} -}
@@ -403,10 +420,17 @@ class World w where
         l <- takeLoot grabbee
         modify $ putLoot l grabber
 
-  heal :: Coords -> w -> Maybe w
-  heal c w = do
+  repair :: Coords -> w -> Maybe w
+  repair c w = do
       e <- getSquare c w
       return $ updateSquare (const . Just $ e {health = health e + 1}) c w
+  
+  build :: Coords -> w -> w
+  build = updateSquare
+    \case Nothing -> Just (Entity Nothing Nothing 1 mempty)
+          Just e  -> if health e > 0 || isJust (actorID e)
+            then Just e
+            else Just $ e {health = health e + 1}
   
   -- Dump Loot into a Square.
   putLoot :: Loot -> Coords -> w -> w
@@ -437,6 +461,11 @@ class World w where
           return . move c destination $ w
         Shoot -> let target = project1 c d (range act) (hittable . fst) w
           in return $ hit target w
+        Blast -> flip execStateT w do
+          let target = project1 c d (range act) (hittable . fst) w
+          let splash = fmap (`step` target) universe
+          modify $ foldr (.) id (fmap hit $ target:splash)
+          modify $ putLoot (singloot Hearts 2) target
         Throw l -> do
           let throwee = project1 c d (range act) (\(thisSq, nextSq) ->
                 (hittable nextSq && isNothing (join . fmap actorID $ nextSq))
@@ -449,9 +478,11 @@ class World w where
         Grab -> do
           let grabbee = step d c
           grab grabbee c w
-        Heal -> heal (step d c) w
-      Undir HealMe -> heal c w
+        Repair -> repair (step d c) w
+        Build -> Just $ build (step d c) w
+      Undir RepairMe -> repair c w
       Undir ShootMe -> return $ hit c w
+      Undir Recycle -> return w
       Undir UpRange -> return $ updateActor (\act' -> act' {range = 
         clamp 0 (maxRange w) $ range act' + 1
         }) aID w

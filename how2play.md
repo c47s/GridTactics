@@ -8,16 +8,64 @@ Next, each player should run the Client program on the same machine as the Serve
 
 Once you're comfortably situated and no-one can see your screen, press `y` to enter your tactical control panel.
 
+## What am I looking at?!
+
+### Pawns
+
+```
+       Living Pawn
+         ┌─────┐
+ Name -> │Zau  │
+ Init -> │#3 ♥︎2│ <- Health
+         └─────┘
+```
+```
+        Dead Pawn
+         ┌─────┐
+ Init -> │#2 ♥︎0│ <- Health
+Juice -> │3J 4S│ <- Scrap
+         └─────┘
+```
+
+Your selected pawn is highlighted blue, friendly pawns are green, and others are red.
+You can click a green pawn to switch to it.
+
+### Objects
+
+```
+          Wall
+         ┌─────┐
+         │   ♥︎2│ <- Health
+Juice -> │1J 1S│ <- Scrap
+         └─────┘
+```
+```
+    Loot (Dead Wall)
+         ┌─────┐
+Juice -> │2J 2S│ <- Scrap
+         │     │
+         └─────┘
+```
+```
+           Fog
+         ┌─────┐
+         │  ?  │
+         │     │
+         └─────┘
+```
+
+Walls are highlighted black. Fog is highlighted white.
+
 ## Playing the Game
 
 All players plan their turns simultaneously, and actions only happen once everyone is done planning.
 
-Everyone's actions happen in order, i.e. everyone's first actions happen before everyone's second actions. However, beyond this, the order is random, i.e. one player's first action could happen before or after another player's first action.
+When evaluating a round, we cycle through pawns, letting them attempt one action per turn. Their position in this cycle is displayed on their square -- it looks like e.g. `#1` or `#3`.
 
-First, select an action. You can either click it in the menu to the left, or press its hotkey, which is also listed in the menu.
-Once the action is selected, you can rotate its direction and otherwise modify it, if applicable.
-Then, hit enter to add it to your plan.
-You can add any number of actions to your plan, even if you don't have enough action points yet. You could always get more actions during the round by shooting yourself, getting actions thrown at you, or picking up actions from the ground.
+First, select an action. You can either click it in the menu to the left, or press its hotkey, also listed in the menu.
+Once the action is selected, you can rotate its direction and otherwise modify it, if applicable. The keys to do so will display beneath the action menu to the left.
+Then, hit enter to add it to your plan. Delete to remove the last action you added.
+You can add any number of actions to your plan, even if you don't have enough resources to perform them yet. You could always get more during the round by shooting yourself, getting them thrown at you, or picking them up from the ground.
 
 Once you're satisfied with your plan, press d or click End Turn to signal that you're done. Once all players end their turn, the round is evaluated.
 
@@ -26,53 +74,60 @@ Once you're satisfied with your plan, press d or click End Turn to signal that y
 ### Actions
 
 #### Moving
-You can't move onto walls unless they have 0 health.
+You can't move onto walls unless they have 0 Health.
 
 You can never move onto players.
 
 If you move onto a square, you pick up its contents.
 
 #### Shooting
-Each shot deducts one heath point from the recipient and gives them one health chunk.
+One damage, at range. The timeless classic.
 
-Shooting yourself has a negative cost! This means you gain an action point by doing it. 
+### Blasting
+Same as shooting, but damages each adjacent square, too.
+Drops some scrap at the impact point.
 
 #### Throwing
 Throwing and shooting have the same range — upgrading range upgrades both.
 
 If thrown items hit a player, they'll be added directly to that player's inventory. If they hit a wall, they fall on the ground in front of the wall. Finally, if they don't hit anything, they fall on the ground at the edge of your range.
 
-Every health chunk you throw decreases your maximum health by 1. This is because maximum health is really just health chunks + health points.
-
 #### Grabbing
-You can only grab adjacent squares.
+You can only grab loot from adjacent squares, and only when they have 0 health.
+Stepping on loot grabs it for free, but you can't move onto players.
 
-#### Healing
-You can only heal adjacent squares.
+#### Repairing
+You can only repair adjacent squares.
+There's no health limit so long as you have the juice & scrap.
 
-Get next to an ally — you can heal each other more efficiently than you can heal yourselves.
+Get next to an ally — you can repair each other more efficiently than you can repair yourselves.
+
+#### Building
+Create a wall with 1 health. You can always repair it to give it more.
+You can also build on top of loot, but why?
+
+#### Scrap Juicing
+You can scrap yourself, taking 1 damage (thereby generating 1 scrap), and gaining 1 juice as well.
+You can also eat scrap, converting it to juice. Note that 2 scrap yield only 1 juice.
 
 #### Upgrading
-Upgrading vision increases your vision radius by 1, and upgrading range increases your throwing and shooting range by 1.
+Upgrading vision increases your vision radius by 1, and upgrading range increases your throwing and shooting range by 1. The maximum depends on the size of your game world.
+
+If your range is larger than the world width, you could shoot yourself in the back!
 
 #### Waiting
-Waiting is helpful when coorinating with teammates. For instance, if someone else plans to move within range and then toss you some action points, you'll need to wait until after they throw to be sure you've recieved those points. Likewise, if someone else plans to heal you from 0 health, you'll want to wait until after they do that.
+Waiting is helpful when coorinating with teammates. For instance, if someone else plans to move within range and then toss you some juice, you'll need to wait until after they throw to be sure you've recieved it. Likewise, if someone else plans to repair you from 0 health, you'll want to wait until after they do that.
 
 However, if you have the action points to spare, doing things while another player also acts is often more productive — wait only when necessary.
 
-### Loot
-Loot looks like a square with 0 health — it's either a dead player, a dead wall, or some stuff someone threw. The number after the slash is the number of health chunks the loot contains. The action points it holds can only be determined by looting it!
-
-Depending on the settings of your server, walls might contain action points. Ask your host about their parameters!
-
-### Health
-Maximum health is a social construct! The number after the slash on a square (i.e. the 3 in 1/3) is just health points plus health chunks in inventory. Since damage takes away one point and gives one chunk, this sum acts just like maximum health. This is why throwing health chunks decreases your "maximum health."
+### Juice & Scrap
+Each pawn recieves one juice per round, but scrap is only generated when entities (walls, pawns) take damage. The sum of health + scrap in the world can only decrease.
 
 ### Tactics
 Players' positions become more uncertain as the round progresses, since they've had more time to move. You could shoot early to mitigate this, but you may also want to move early in order to dodge other players' volleys.
 
-Aim your shots so that they pass through multiple squares your target could be in. If you have the action points, consider shooting in multiple directions or even moving and then shooting from a slightly different angle.
+Aim your shots so that they pass through multiple squares your target could be in. If you have the action points, consider shooting in multiple directions or even moving and then shooting from a slightly different angle. Or just spray blasts. If you have the scrap & juice.
 
-If you try shooting yourself while in a firefight, your opponent will probably kill you before you use your extra action points. Instead, have someone behind you shoot themselves and throw you the points.
+If you try scrapping yourself while in a firefight, your opponent will probably kill you before you use your extra juice. Instead, scrap from cover and toss the spoils to the front line.
 
-Clustering allies is very helpful: you can throw action points to each other, and heal each other if adjacent. Players in front can thus recieve healing and points from players behind, sustaining them in a firefight.
+Clustering allies is very helpful: you can throw resources to each other, and repair each other if adjacent. Players in front can thus recieve support from players behind, sustaining them in a firefight.

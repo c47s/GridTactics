@@ -19,12 +19,12 @@ main = runInputT defaultSettings do
     outputStrLn ""
     wSize <- untilValidAnd gr0 do
         outputStrLn "Enter world width:"
-        getInputLineWithInitial "> " ("10","")
+        getInputLineWithInitial "> " ("11","")
     
     outputStrLn ""
     pawnsPerClient' <- untilValidAnd gr0 do
         outputStrLn "Enter number of pawns per client:"
-        getInputLineWithInitial "> " ("8", "")
+        getInputLineWithInitial "> " ("3", "")
 
     outputStrLn ""
     fillPortion <- untilValidAnd
@@ -32,34 +32,38 @@ main = runInputT defaultSettings do
         &>- check "Cannot be greater than 100 percent." (<= 100)
         ) do
             outputStrLn "Enter percentage of the map to fill with scatters:"
-            getInputLineWithInitial "> " ("50","")
+            getInputLineWithInitial "> " ("30","")
 
     outputStrLn ""
     scatterHealth <- untilValidAnd nonNeg do
-        outputStrLn "Enter scatter health:"
+        outputStrLn "Enter scatter Health:"
         getInputLineWithInitial "> " ("2","")
 
     outputStrLn ""
-    scatterActions <- untilValidAnd nonNeg do
-        outputStrLn "Enter scatter actions:"
-        outputStrLn "(Action points that can be looted from a scatter)"
-        getInputLineWithInitial "> " ("1","")
+    scatterHearts <- untilValid do
+        outputStrLn "Enter scatter scrap:"
+        outputStrLn "(Extra scrap placed inside scatters)"
+        getInputLineWithInitial "> " ("2","")
+
+    outputStrLn ""
+    scatterActions <- untilValid do
+        outputStrLn "Enter scatter juice:"
+        outputStrLn "(Juice placed inside scatters)"
+        getInputLineWithInitial "> " ("0","")
 
     outputStrLn ""
     startHealth <- untilValidAnd gr0 do
-        outputStrLn "Enter starting health:"
-        getInputLineWithInitial "> " ("3","")
+        outputStrLn "Enter starting Health:"
+        getInputLineWithInitial "> " ("2","")
 
     outputStrLn ""
-    startMaxHealth <- untilValidAnd
-        (check "Cannot be less than starting health." (>= startHealth))
-        do
-            outputStrLn "Enter starting maximum health:"
-            getInputLineWithInitial "> " (show startHealth,"")
+    startHearts <- untilValidAnd nonNeg do
+        outputStrLn "Enter starting scrap:"
+        getInputLineWithInitial "> " ("2","")
 
     outputStrLn ""
-    startActions <- untilValidAnd gr0 do
-        outputStrLn "Enter starting actions:"
+    startActions <- untilValidAnd nonNeg do
+        outputStrLn "Enter starting juice:"
         getInputLineWithInitial "> " ("1","")
 
     gen <- getStdGen
@@ -69,6 +73,7 @@ main = runInputT defaultSettings do
             , ename = Nothing
             , health = scatterHealth
             , contents = singloot Actions scatterActions
+                      <> singloot Hearts scatterHearts
             })
 
     let w = fillFraction (fillPortion / 100 :: Double) scatterE
@@ -81,14 +86,14 @@ main = runInputT defaultSettings do
             (<= maxVision w)
 
     outputStrLn ""
-    startRange <- untilValidAnd (gr0 &>- constrange) do
+    startRange <- untilValidAnd (nonNeg &>- constrange) do
         outputStrLn "Enter starting range:"
-        getInputLineWithInitial "> " (show $ clamp 0 2 $ maxRange w,"")
+        getInputLineWithInitial "> " (show $ clamp 0 3 $ min (2 * maxVision w) (maxRange w),"")
 
     outputStrLn ""
-    startVision <- untilValidAnd (gr0 &>- constrvis) do
+    startVision <- untilValidAnd (nonNeg &>- constrvis) do
         outputStrLn "Enter starting vision distance:"
-        getInputLineWithInitial "> " (show $ clamp 0 3 $ maxVision w,"")
+        getInputLineWithInitial "> " (show $ clamp 0 2 $ maxVision w,"")
 
     let conf = Config 
             { pawnTemplate = Entity
@@ -96,7 +101,7 @@ main = runInputT defaultSettings do
                 , ename = Nothing
                 , health = startHealth
                 , contents = singloot Actions startActions
-                          <> singloot Hearts (startMaxHealth - startHealth)
+                          <> singloot Hearts startHearts
                 }
             , actorTemplate = Actor
                 { aname = "TEMPLATE"
