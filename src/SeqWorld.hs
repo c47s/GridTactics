@@ -36,6 +36,9 @@ instance World SeqWorld where
     , turnOrder' = []
     , nextUID = 0
     }
+  
+  origin w = Just (0, 0)
+  extent w = Just (width w - 1, width w - 1)
 
   splitGen = do
     (myNewGen,outGen) <- gets (split . gen')

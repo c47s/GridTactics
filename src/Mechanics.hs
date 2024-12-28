@@ -267,6 +267,8 @@ class World w where
   maxVision :: w -> Int
   turnOrder :: w -> [UID] -- ^ Order in which pawns will act next round
   shuffleTurnOrder :: w -> w -- ^ Shuffle the turnOrder
+  origin :: w -> Maybe Coords -- ^ (0, 0) - Top left corner
+  extent :: w -> Maybe Coords -- ^ Bottom right corner. With origin, draws a bounding box, if applicable.
 
   register :: Actor -> StateT w Maybe UID -- Register this Actor in the World.
   register a = do
@@ -306,10 +308,10 @@ class World w where
       visibleCoords = Set.fromList $ views >>= (\(r, c) -> concat [[wrapCoords w $ bimap (+ x) (+ y) c | x <- [- r .. r]] | y <- [- r .. r]])
       xs = Set.map (fst :: Coords -> Int) visibleCoords
       ys = Set.map (snd :: Coords -> Int) visibleCoords
-      minX = minimum xs
-      minY = minimum ys
-      maxX = maximum xs
-      maxY = maximum ys
+      minX = maybe (minimum xs) fst $ origin w
+      minY = maybe (minimum ys) snd $ origin w
+      maxX = maybe (maximum xs) fst $ extent w
+      maxY = maybe (maximum ys) snd $ extent w
       getIfVisible c = if c `Set.member` visibleCoords
         then getSquare c w
         else Just (Entity Nothing (Just "?") 0 mempty)
