@@ -86,5 +86,5 @@ instance World SeqWorld where
     $ let (x, y) = wrap (width w) c
       in w {worldMap = Seq.adjust (Seq.adjust f x) y $ worldMap w}
   
-  maxRange = (`div` 2) . width
-  maxVision = (`div` 2) . width
+  maxRange = const maxBound
+  maxVision = (`div` 2) . subtract 1 . width

@@ -20,9 +20,6 @@ main = runInputT defaultSettings do
     wSize <- untilValidAnd gr0 do
         outputStrLn "Enter world width:"
         getInputLineWithInitial "> " ("10","")
-
-    let constrange = check ("Must be at most " ++ show ((wSize - 1) `div` 2))
-            (<= (wSize - 1) `div` 2)
     
     outputStrLn ""
     pawnsPerClient' <- untilValidAnd gr0 do
@@ -65,16 +62,6 @@ main = runInputT defaultSettings do
         outputStrLn "Enter starting actions:"
         getInputLineWithInitial "> " ("1","")
 
-    outputStrLn ""
-    startRange <- untilValidAnd (gr0 &>- constrange) do
-        outputStrLn "Enter starting range:"
-        getInputLineWithInitial "> " (show $ clamp 0 2 $ (wSize - 1) `div` 2,"")
-
-    outputStrLn ""
-    startVision <- untilValidAnd (gr0 &>- constrange) do
-        outputStrLn "Enter starting vision distance:"
-        getInputLineWithInitial "> " (show $ clamp 0 3 $ (wSize - 1) `div` 2,"")
-
     gen <- getStdGen
 
     let scatterE = (Entity
@@ -86,6 +73,22 @@ main = runInputT defaultSettings do
 
     let w = fillFraction (fillPortion / 100 :: Double) scatterE
             $ mkWorld gen wSize
+
+    let constrange = check ("Must be at most " ++ show (maxRange w))
+            (<= maxRange w)
+    
+    let constrvis = check ("Must be at most " ++ show (maxVision w))
+            (<= maxVision w)
+
+    outputStrLn ""
+    startRange <- untilValidAnd (gr0 &>- constrange) do
+        outputStrLn "Enter starting range:"
+        getInputLineWithInitial "> " (show $ clamp 0 2 $ maxRange w,"")
+
+    outputStrLn ""
+    startVision <- untilValidAnd (gr0 &>- constrvis) do
+        outputStrLn "Enter starting vision distance:"
+        getInputLineWithInitial "> " (show $ clamp 0 3 $ maxVision w,"")
 
     let conf = Config 
             { pawnTemplate = Entity
