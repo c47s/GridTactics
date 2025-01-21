@@ -60,7 +60,7 @@
 
 *   [ ] Make Client error-tolerant
 
-*   [ ] Allow Client to manage multiple actors
+*   [x] Allow Client to manage multiple actors
 
 *   [ ] Add logging to server
 
@@ -78,11 +78,11 @@
 
     *   [ ] Use mouse to choose direction
 
-    *   [ ] Clickable buttons for other UI interactions
+    *   [x] Clickable buttons for other UI interactions
 
         *   [ ] ~~Submitting Action~~
 
-        *   [ ] Changing Actor
+        *   [x] Changing Actor
 
     *   [ ] Make action queue editable
 
