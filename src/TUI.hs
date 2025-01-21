@@ -208,11 +208,13 @@ dir2Text NW = "↖︎"
 
 act2Text :: Action -> Text
 act2Text (Dir (Throw loot) dir) = dir2Text dir <> " Throw " <> loot2Text loot
+act2Text (Dir (Build n) dir) = dir2Text dir <> " Build ♥︎" <> show n
 act2Text (Dir act dir) = dir2Text dir <> " " <> show act <> " "
 act2Text actn = basicAct2Text actn
 
 basicAct2Text :: Action -> Text
 basicAct2Text (Dir (Throw _) _) = "Throw"
+basicAct2Text (Dir (Build _) _) = "Build"
 basicAct2Text (Dir act _) = show act
 basicAct2Text (Undir RepairMe)  = "Repair Self"
 basicAct2Text (Undir ShootMe) = "Scrap Self"
@@ -283,7 +285,7 @@ draw s = let
             ++ dispUActBinds universe
         )
     
-    inventory = txt ("Your Inventory: " <> loot2Text (maybeToMonoid (contents <$> mySq)))
+    inventory = txt ("Inventory: " <> loot2Text (maybeToMonoid (contents <$> mySq)))
 
     selectedAct = vBox . fmap hCenter $
         [ txt ("Selected Action: " <> act2Text (currAction s))
@@ -302,7 +304,7 @@ draw s = let
         , case currAction s of
             Dir _ _ -> txtWrap $ dispBind RotL <> " and " <> dispBind RotR
                 <> " rotate direction"
-            _ -> emptyWidget 
+            _ -> emptyWidget
         , case currAction s of
             Dir (Throw _) _ -> vBox
                 [ txtWrap $ dispBind Decrement <> " and " <> dispBind Increment
@@ -310,6 +312,8 @@ draw s = let
                 , txtWrap $ dispBind RotL' <> " and " <> dispBind RotR'
                     <> " select resource type"
                 ]
+            Dir (Build _) _ -> txtWrap $ dispBind Decrement <> " and " <> dispBind Increment
+                <> " adjust build health"
             _ -> emptyWidget
         ]
 

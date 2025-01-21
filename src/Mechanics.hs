@@ -202,7 +202,7 @@ data DirAction
   | Throw Loot
   | Grab
   | Repair
-  | Build
+  | Build Int
   deriving stock (Eq, Ord, Show, Generic)
 
 instance Enum DirAction where
@@ -211,20 +211,20 @@ instance Enum DirAction where
   fromEnum Blast     = 2
   fromEnum (Throw _) = 3
   fromEnum Grab      = 4
-  fromEnum Repair      = 5
-  fromEnum Build     = 6
+  fromEnum Repair    = 5
+  fromEnum (Build _) = 6
   toEnum 0 = Move
   toEnum 1 = Shoot
   toEnum 2 = Blast
   toEnum 3 = Throw mempty
   toEnum 4 = Grab
   toEnum 5 = Repair
-  toEnum 6 = Build
+  toEnum 6 = Build 1
   toEnum n = toEnum (n `mod` 7)
 
 instance Bounded DirAction where
   minBound = Move
-  maxBound = Build
+  maxBound = Build 1
 
 data UndirAction
   = RepairMe
@@ -239,10 +239,10 @@ cost :: Action -> Loot
 cost (Dir Move _)      = mempty
 cost (Dir Shoot _)     = singloot Actions 1
 cost (Dir Blast _)     = singloot Actions 2 <> singloot Hearts 4
-cost (Dir (Throw _) _) = mempty
+cost (Dir (Throw l) _) = l
 cost (Dir Grab _)      = singloot Actions 1
 cost (Dir Repair _)    = singloot Actions 2 <> singloot Hearts 1
-cost (Dir Build _)     = singloot Hearts 1
+cost (Dir (Build n) _) = singloot Hearts n
 cost (Undir RepairMe)  = singloot Actions 3 <> singloot Hearts 1
 cost (Undir ShootMe)   = singloot Actions (-1)
 cost (Undir Recycle)   = singloot Actions (-1) <> singloot Hearts 2
@@ -425,12 +425,12 @@ class World w where
       e <- getSquare c w
       return $ updateSquare (const . Just $ e {health = health e + 1}) c w
   
-  build :: Coords -> w -> w
-  build = updateSquare
-    \case Nothing -> Just (Entity Nothing Nothing 1 mempty)
+  build :: Int -> Coords -> w -> w
+  build n = updateSquare
+    \case Nothing -> Just (Entity Nothing Nothing n mempty)
           Just e  -> if health e > 0 || isJust (actorID e)
             then Just e
-            else Just $ e {health = health e + 1}
+            else Just $ e {health = health e + n}
   
   -- Dump Loot into a Square.
   putLoot :: Loot -> Coords -> w -> w
@@ -479,7 +479,10 @@ class World w where
           let grabbee = step d c
           grab grabbee c w
         Repair -> repair (step d c) w
-        Build -> Just $ build (step d c) w
+        Build n -> flip execStateT w do
+          modify $ build n (step d c)
+          -- cont' <- lift $ cont `without` singloot Hearts n
+          -- modify $ updateSquare (fmap \e -> e {contents = cont'}) c
       Undir RepairMe -> repair c w
       Undir ShootMe -> return $ hit c w
       Undir Recycle -> return w

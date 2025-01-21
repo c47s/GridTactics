@@ -101,9 +101,11 @@ doUIAction (SelUndirAct a) s = continue $ selUndirAct a s
 doUIAction (SelDirAct a) s = continue $ selDirAct a s
 doUIAction Increment s = continue case currAction s of
     Dir (Throw l) d -> s {currAction = Dir (Throw (l <> singloot (currResource s) 1)) d}
+    Dir (Build n) d -> s {currAction = Dir (Build $ n + 1) d}
     _ -> s
 doUIAction Decrement s = continue case currAction s of
     Dir (Throw l) d -> s {currAction = Dir (Throw $ maybeToMonoid (l `without` singloot (currResource s) 1)) d}
+    Dir (Build n) d -> s {currAction = Dir (Build $ max 0 $ n - 1) d}
     _ -> s
 doUIAction RotL s = continue case currAction s of
     Dir a d -> s {currAction = Dir a (prev d)}
@@ -169,12 +171,12 @@ defaultKeybinds = Bap.fromList
     , (KChar 't', SelDirAct (Throw mempty))
     , (KChar 'g', SelDirAct Grab)
     , (KChar 'r', SelDirAct Repair)
-    , (KChar 'b', SelDirAct Build)
+    , (KChar 'b', SelDirAct (Build 1))
     , (KChar 'R', SelUndirAct RepairMe)
     , (KChar 'S', SelUndirAct ShootMe)
     , (KChar 'e', SelUndirAct Recycle)
     , (KChar 'G', SelUndirAct UpRange)
-    , (KChar 'v', SelUndirAct UpVision)
+    -- , (KChar 'v', SelUndirAct UpVision)
     , (KChar 'w', SelUndirAct Wait)
     , (KChar '+', Increment)
     , (KChar '=', Also Increment)
