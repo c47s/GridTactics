@@ -31,6 +31,8 @@ instance AutoDequeJSON Loot
 
 instance ToJSON UID
 instance FromJSON UID
+instance ToJSONKey UID
+instance FromJSONKey UID
 instance AutoDequeJSON UID
 instance ToHttpApiData UID where
    toUrlPiece = showTextData . unwrapUID

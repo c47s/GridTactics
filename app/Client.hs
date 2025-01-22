@@ -63,6 +63,7 @@ updateFromServer s = do
     nextActor' <- inApp s $ getActor  $ nextActorID s
     currView'  <- inApp s $ look      $ currActorID s
     currMap'   <- inApp s $ multiLook $ toList $ actorIDs s
+    currReplay' <- inApp s $ roundLook $ toList $ actorIDs s
     currDone'  <- inApp s $ getDone   $ currActorID s
     currNumDone' <- inApp s getNumDone
     currNames' <- inApp s actorNames
@@ -72,6 +73,7 @@ updateFromServer s = do
         , nextActor = nextActor'
         , currView = currView'
         , currMap = currMap'
+        , currReplay = currReplay'
         , currDone = currDone'
         , currNumDone = currNumDone'
         , currNames = currNames'
@@ -134,6 +136,10 @@ doUIAction No s = continue $ if changingPlayers s
             }
     else s
 doUIAction ViewMap s = continue' $ s {viewingMap = not . viewingMap $ s}
+doUIAction ViewReplay s = continue' $ s { viewingReplay = not . viewingReplay $ s
+                                        , replayIndex = -1
+                                        , replayTick = 0
+                                        }
 doUIAction (SwitchTo aID) s = continue' $ s {actorIDs = rotateTo aID $ actorIDs s}
 doUIAction ToggleDone s = toggleDone (currActorID s) s
 doUIAction SubmAction s = inApp s (act (currActorID s) (currAction s)) >> continue' s
@@ -151,7 +157,16 @@ doUIAction (Also uiA) s = doUIAction uiA s
 handleEvent :: AppState -> BrickEvent Name GTEvent -> EventM Name (Next AppState)
 handleEvent s (VtyEvent (EvKey key _modifiers)) = maybe continue doUIAction (Bap.lookup key (keybinds s)) s
 handleEvent s (MouseDown (Btn uiAct) _ _ _) = doUIAction uiAct s
-handleEvent s (AppEvent (Tick n)) = s & if currDone s || n `mod` 5 == 0 then continue' else continue
+handleEvent s (AppEvent (Tick n)) = do
+    let s' = if viewingReplay s && n >= replayTick s
+        then if replayIndex s + 1 == length (currReplay s)
+            then s {viewingReplay = False, replayIndex = 0}
+            else s
+                { replayIndex = replayIndex s + 1
+                , replayTick = n + round (30 * 0.99 ^ (replayIndex s + 1) :: Double)
+                }
+        else s
+    s' & if currDone s || n `mod` 500 == 0 then continue' else continue
 handleEvent s _otherEvent = continue s
 
 
@@ -176,7 +191,7 @@ defaultKeybinds = Bap.fromList
     , (KChar 'S', SelUndirAct ShootMe)
     , (KChar 'e', SelUndirAct Recycle)
     , (KChar 'G', SelUndirAct UpRange)
-    -- , (KChar 'v', SelUndirAct UpVision)
+    , (KChar 'v', SelUndirAct UpVision)
     , (KChar 'w', SelUndirAct Wait)
     , (KChar '+', Increment)
     , (KChar '=', Also Increment)
@@ -190,6 +205,7 @@ defaultKeybinds = Bap.fromList
     , (KChar 'y', Yes)
     , (KChar 'n', No)
     , (KChar 'M', ViewMap)
+    , (KChar 'V', ViewReplay)
     , (KChar 'd', ToggleDone)
     , (KChar 'q', Quit)
     , (KChar 'Z', ClaimAllPawns)
@@ -259,10 +275,14 @@ main = runInputT defaultSettings do
             , currResource = Actions
             , changingPlayers = True
             , viewingMap = False
+            , viewingReplay = False
+            , replayIndex = 0
+            , replayTick = 0
             , currActor = error "currActor not yet initialized"
             , nextActor = error "nextActor not yet initialized"
             , currView = error "currView not yet initialized"
             , currMap = error "currMap not yet initialized"
+            , currReplay = error "currReplay not yet initialized"
             , currDone = error "currDone not yet initialized"
             , currNumDone = error "currNumDone not yet initialized"
             , currNames = error "currNames not yet initialized"
@@ -280,7 +300,7 @@ main = runInputT defaultSettings do
         writeIORef tickCounter (n + 1)
 
         writeBChan chan (Tick n)
-        threadDelay 1000000
+        threadDelay 10000 -- centisecond
     
     let buildVty = mkVty defaultConfig
     initialVty <- liftIO buildVty

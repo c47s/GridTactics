@@ -42,6 +42,9 @@ data AppState = AppState
     , currResource :: Resource
     , changingPlayers :: Bool
     , viewingMap :: Bool
+    , viewingReplay :: Bool
+    , replayIndex :: Int
+    , replayTick :: Int
     , keybinds :: Bimap Key UIAction
 
     -- Cache
@@ -49,6 +52,7 @@ data AppState = AppState
     , nextActor :: Actor
     , currView :: Grid
     , currMap :: Grid
+    , currReplay :: Seq Grid
     , currDone :: Bool
     , currNumDone :: Int
     , currNames :: [Text]
@@ -94,6 +98,7 @@ data UIAction
     | ViewMap
     | SwitchTo UID
     | ToggleDone
+    | ViewReplay
     | Quit
     | ClaimAllPawns
     | RemovePawn
@@ -251,8 +256,6 @@ draw s = let
             (txtWrap "Nothing Planned (Yet!)")
         . fmap (txtWrap . act2Text) . reverse . toList . queue $ me))
 
-    worldTable = renderTable . grid2Table s $ currView s
-
     dispDActCost actn = clickable (dirActBtn actn) . txt $ loot2TextShort (cost (Dir actn N))
     dispUActCost actn = clickable (undirActBtn actn) . txt $
             loot2TextShort (cost $ Undir actn)
@@ -319,24 +322,38 @@ draw s = let
 
     rSidebar = vBox
         [ doneBox
+        , if viewingReplay s
+            then txt "V: Exit replay"
+            else if not . null $ currReplay s
+                then txt "V: View replay"
+                else txt " "
         , queueBox
         , txtWrap $ dispBind SubmAction <> ": Plan selected action"
         , txtWrap $ dispBind DelAction <> ": Delete last action"
         ]
     
-    mapTable = renderTable . grid2Table s $ currMap s
+    worldTable = hCenter (txt "Press M to view map")
+             <=> hCenter (renderTable . grid2Table s $ currView s)
+
+    mapTable = hCenter (txt "Press M to exit map")
+           <=> hCenter (renderTable . grid2Table s $ currMap s)
+
+    replayTable = fromMaybe (hCenter $ vCenter $ txt ";3") $ do
+        grid <- Seq.lookup (max 0 $ replayIndex s) $ currReplay s
+        return $ renderTable $ grid2Table s grid
 
     centerContent = vBox . fmap hCenter $
-        [ txt ("You are " <> aname me)
-        , if viewingMap s
-            then txt "Press M to exit map"
-            else txt "Press M to view map"
-        , if viewingMap s
-            then mapTable
-            else worldTable
-        , inventory
-        , selectedAct
-        ]
+        if viewingReplay s
+            then [ txt "Round Replay"
+                 , replayTable
+                 ]
+            else [ txt ("You are " <> aname me)
+                 , if viewingMap s
+                     then mapTable
+                     else worldTable
+                 , inventory
+                 , selectedAct
+                 ]
     
     centerWidthPercent = 50
     sbarWidthPercent = (100 - centerWidthPercent) `div` 2

@@ -4,7 +4,9 @@ module SeqWorld
 
 
 import qualified Data.IntMap.Strict as IM
+import qualified Data.Map.Strict as Map
 import qualified Data.Sequence as Seq
+import           Data.Sequence (Seq(..))
 import qualified Data.Set as Set
 import           Data.Tuple.Extra (both)
 import           Mechanics
@@ -21,6 +23,7 @@ data SeqWorld = SeqWorld
   , actors' :: IntMap Actor
   , turnOrder' :: [UID]
   , nextUID :: Int
+  , snapshots' :: Seq (Seq (Map UID Actor, Map UID Coords, Grid))
   }
 
 wrap :: Int -> Coords -> Coords
@@ -35,10 +38,27 @@ instance World SeqWorld where
     , actors' = IM.empty
     , turnOrder' = []
     , nextUID = 0
+    , snapshots' = mempty
     }
   
   origin _ = Just (0, 0)
   extent w = Just (width w - 1, width w - 1)
+
+
+  snapshots = snapshots'
+
+  takeSnapshot w = w { snapshots' = snapshots' w &
+      \case
+        (snss :|> sns) -> snss :|> (sns :|> snapshot)
+        Empty -> fromList [fromList [snapshot]]
+    }
+    where snapshot = ( Map.fromList [(aID, lookupActor aID w) | aID <- actors w]
+                     , Map.fromList [(aID, findActor aID w) | aID <- actors w]
+                     , multiView [(width w, (0, 0))] w
+                     )
+  
+  newSnapTurn w = w { snapshots' = snapshots' w :|> mempty }
+
 
   splitGen = do
     (myNewGen,outGen) <- gets (split . gen')

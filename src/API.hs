@@ -19,6 +19,7 @@ module API
     , newActor
     , getNumDone
     , multiLook
+    , roundLook
     , getConfig
 
     , Config (..)
@@ -66,6 +67,7 @@ type ActorsAPI = UIDsAPI
             :<|> NewAPI
             :<|> NumDoneAPI
             :<|> MultiViewAPI
+            :<|> RoundViewAPI
 
 type UIDsAPI = Get '[JSON] [UID]
 
@@ -81,6 +83,9 @@ type NumDoneAPI = "done" :> Get '[JSON] Int
 
 type MultiViewAPI = "view"
     :> ReqBody '[JSON] [UID] :> Get '[JSON] Grid
+
+type RoundViewAPI = "replay"
+    :> ReqBody '[JSON] [UID] :> Get '[JSON] (Seq Grid)
 
 type ConfigAPI = Get '[JSON] Config
 
@@ -170,6 +175,12 @@ hMultiView _conf ref aIDs = stateToIO ref do
     w <- get
     return $ multiView ((\aID -> (vision w $ lookupActor aID w, findActor aID w)) <$> aIDs) w
 
+hRoundView :: (World w) => Config -> IORef w -> Server RoundViewAPI
+hRoundView _conf ref aIDs = stateToIO ref do
+    w <- get
+    pass -- to quiet hlint
+    return $ roundView aIDs w
+
 hActor :: (World w) => Config -> IORef w -> Server ActorAPI
 hActor conf ref aID = hActorSelf aID conf ref
             :<|> hView aID conf ref
@@ -183,6 +194,7 @@ hActors conf ref = hUIDs conf ref
      :<|> hNew conf ref
      :<|> hNumDone conf ref
      :<|> hMultiView conf ref
+     :<|> hRoundView conf ref
 
 hConfig :: Config -> Server ConfigAPI
 hConfig = return
@@ -212,10 +224,11 @@ actorNames :: (MonadIO m) => ReaderT ClientEnv m [Text]
 newActor :: (MonadIO m) => Text -> ReaderT ClientEnv m UID
 getNumDone :: (MonadIO m) => ReaderT ClientEnv m Int
 multiLook :: (MonadIO m) => [UID] -> ReaderT ClientEnv m [[Square]]
+roundLook :: (MonadIO m) => [UID] -> ReaderT ClientEnv m (Seq Grid)
 getConfig :: (MonadIO m) => ReaderT ClientEnv m Config
 getActor :<|> quitActor :<|> look :<|> act :<|> delAct :<|> getDone :<|> setDone
     :<|> getActorIDs :<|> getTurnOrder :<|> actorNames :<|> newActor :<|> getNumDone
-    :<|> multiLook :<|> getConfig
+    :<|> multiLook :<|> roundLook :<|> getConfig
     = hoistClient (flatten api) clientToReader $ client $ flatten api
 
 

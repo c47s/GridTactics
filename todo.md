@@ -6,10 +6,10 @@
 
 *   [x] Move general, reusable utility functions into a separate file
 
-    Functions like stateToIO and doState
+        Functions like stateToIO and doState
 
 *   [x] Add multiplayer between terminals on same machine\
-    Simply connect to localhost
+        Simply connect to localhost
 
 *   [x] Add multiplayer over network
 
@@ -28,7 +28,7 @@
         *   [ ] ... over the internet
 
 *   [x] Delete Main\
-    Pull out any useful code first (there probably is none since Client was originally a copy of Main)
+        Pull out any useful code first (there probably is none since Client was originally a copy of Main)
 
 *   [x] Replace `show`-based UI components with specialized widgets
 
@@ -37,6 +37,9 @@
 *   [x] Auto-generate keybind hints in UI and keybinds themselves from a common source
 
 *   [x] Write how2play
+  
+*   [ ] Refactor `popAct` using StateT so it's NOT in reverse chronological order\
+        and generally NOT convoluted as fuck 
 
 *   [ ] Create documentation
 
@@ -89,4 +92,4 @@
         *   [x] Allow deleting last queue item
 
     *   [ ] Add Forms to UI\
-        Will probably require adding lens stuff
+            Will probably require adding lens stuff

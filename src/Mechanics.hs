@@ -40,6 +40,7 @@ import           Data.Bool.HT (if')
 import           Data.Composition
 import           Data.Map.Merge.Strict
 import qualified Data.Map.Strict as Map
+import           Data.Sequence (Seq(..), lookup)
 import qualified Data.Set as Set
 import qualified Deque.Lazy as D
 import           Deque.Lazy (Deque)
@@ -286,6 +287,9 @@ class World w where
   shuffleTurnOrder :: w -> w -- ^ Shuffle the turnOrder
   origin :: w -> Maybe Coords -- ^ (0, 0) - Top left corner
   extent :: w -> Maybe Coords -- ^ Bottom right corner. With origin, draws a bounding box, if applicable.
+  snapshots :: w -> Seq (Seq (Map UID Actor, Map UID Coords, Grid)) -- ^ Views of the world after each action, divided by turn.
+  takeSnapshot :: w -> w -- ^ Take a snapshot
+  newSnapTurn :: w -> w -- ^ Start the next subsequence of snapshots
 
   register :: Actor -> StateT w Maybe UID -- Register this Actor in the World.
   register a = do
@@ -321,7 +325,22 @@ class World w where
   view r c w = (`getSquare` w) <<$>> ([[bimap (+ x) (+ y) c | x <- [- r .. r]] | y <- [- r .. r]])
 
   multiView :: [(Int, Coords)] -> w -> Grid
-  multiView views w = let
+  multiView = multiViewVia getSquare
+
+  roundView :: [UID] -> w -> Seq Grid
+  roundView aIDs w =
+      ( \(aMap, cMap, g) -> let
+          vision' aID = let (x, y) = wrapCoords w $ cMap Map.! aID
+            in if maybe 10 health (g !! y !! x) > 0
+              then baseVision (aMap Map.! aID)
+              else 0
+          views = ((\aID -> (vision' aID, cMap Map.! aID)) <$> aIDs)
+        in
+          multiViewVia (\c _ -> g !! snd c !! fst c) views w
+      ) <$> fromMaybe Empty (lookup (length (snapshots w) - 1) (snapshots w))
+
+  multiViewVia :: (Coords -> w -> Square) -> [(Int, Coords)] -> w -> Grid
+  multiViewVia getSquare' views w = let
       visibleCoords = Set.fromList $ views >>= (\(r, c) -> concat [[wrapCoords w $ bimap (+ x) (+ y) c | x <- [- r .. r]] | y <- [- r .. r]])
       xs = Set.map (fst :: Coords -> Int) visibleCoords
       ys = Set.map (snd :: Coords -> Int) visibleCoords
@@ -330,7 +349,7 @@ class World w where
       maxX = maybe (maximum xs) fst $ extent w
       maxY = maybe (maximum ys) snd $ extent w
       getIfVisible c = if c `Set.member` visibleCoords
-        then getSquare c w
+        then getSquare' c w
         else Just (Entity Nothing (Just "?") 0 mempty)
     in
       getIfVisible <<$>> ([[(x, y) | x <- [minX .. maxX]] | y <- [minY .. maxY]])
@@ -505,7 +524,7 @@ class World w where
         (or . fmap ((<= 0) . health) . getSquare (findIn w) $ w)
         w . -- Keep the world unchanged if health WAS ORIGINALLY <= 0, or Actor's square was empty.
       fromMaybe w . -- Keep the World unchanged if the Actor can't afford the Action.
-        (\w' -> spendFor actn (findIn w') w') . -- Even if the Action fails, try to pay for it.
+        fmap takeSnapshot . (\w' -> spendFor actn (findIn w') w') . -- Even if the Action fails, try to pay for it.
       fromMaybe w . -- Keep the World unchanged if the Action fails.
         doAct actn (findIn w) $ w
 
@@ -528,6 +547,8 @@ class World w where
   runTurn :: w -> w 
   runTurn = execState do
     let queuesEmpty w = all (D.null . queue . flip lookupActor w) . actors $ w
+    modify newSnapTurn
+    modify takeSnapshot
     modify $ until queuesEmpty runRound
     modify . giveAllLoot $ singloot Actions 1
     everyone <- gets actors
