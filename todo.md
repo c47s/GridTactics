@@ -38,7 +38,7 @@
 
 *   [x] Write how2play
   
-*   [ ] Refactor `popAct` using StateT so it's NOT in reverse chronological order\
+*   [x] Refactor `popAct` so it's NOT in reverse chronological order\
         and generally NOT convoluted as fuck 
 
 *   [ ] Create documentation

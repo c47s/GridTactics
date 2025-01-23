@@ -36,7 +36,6 @@ module Mechanics
 import           Brick.Util (clamp)
 import           Control.Monad.Morph
 import           Control.Zipper
-import           Data.Bool.HT (if')
 import           Data.Composition
 import           Data.Map.Merge.Strict
 import qualified Data.Map.Strict as Map
@@ -514,19 +513,18 @@ class World w where
       Undir Wait -> return w
 
   -- Pop an Action from the Actor's queue, and do it.
-  -- If the queue is empty, keep the world unchanged.
   popAct :: UID -> w -> w
-  popAct aID w = fromMaybe w do
-    let findIn = findActor aID
-    (actn, queue') <- D.unsnoc . queue $ lookupActor aID w
-    return . updateActor (\a -> a {queue = queue'}) aID . -- Always update the queue.
-      if'
-        (or . fmap ((<= 0) . health) . getSquare (findIn w) $ w)
-        w . -- Keep the world unchanged if health WAS ORIGINALLY <= 0, or Actor's square was empty.
-      fromMaybe w . -- Keep the World unchanged if the Actor can't afford the Action.
-        fmap takeSnapshot . (\w' -> spendFor actn (findIn w') w') . -- Even if the Action fails, try to pay for it.
-      fromMaybe w . -- Keep the World unchanged if the Action fails.
-        doAct actn (findIn w) $ w
+  popAct aID w =
+    updateActor (\a -> a -- Always pop an action (if any) from the queue
+      { queue = maybe (queue a) snd . D.unsnoc . queue $ a }) aID
+    $ fromMaybe w do
+      let findMeIn = findActor aID
+      (actn, _) <- D.unsnoc . queue $ lookupActor aID w -- Maybe get the action
+      ( if Just True == fmap ((> 0) . health) (getSquare (findMeIn w) w)
+            then Just w else Nothing -- Nothing if pawn is missing/dead
+        ) >>= (\w' -> doAct actn (findMeIn w') w')
+          >>= (\w' -> spendFor actn (findMeIn w') w')
+          >>= Just . takeSnapshot
 
   giveAllLoot :: Loot -> w -> w
   giveAllLoot l w = foldl' (&) w
