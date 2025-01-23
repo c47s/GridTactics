@@ -113,8 +113,9 @@ newtype Loot = Loot {unLoot :: Map Resource Int}
     deriving newtype (Eq, Ord, Show)
     deriving stock Generic
 
+{- HLINT ignore "Use one" -} -- Spurious hint.
 singloot :: Resource -> Int -> Loot
-singloot = Loot .: Map.singleton
+singloot = Loot .: Map.singleton 
 
 contains :: Loot -> Loot -> Bool
 contains = isJust .: without
