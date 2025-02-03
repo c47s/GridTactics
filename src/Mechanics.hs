@@ -479,7 +479,7 @@ class World w where
   doAct a c w = do
     let s = getSquare c w
     me <- s
-    let cont = contents me
+    let _cont = contents me
     aID <- actorID me
     let act = lookupActor aID w
     case a of
@@ -500,10 +500,7 @@ class World w where
                 (hittable nextSq && isNothing (join . fmap actorID $ nextSq))
                 || hittable thisSq || isJust (join . fmap actorID $ thisSq)
                 ) w
-          cont' <- cont `without` l
-          return .
-            putLoot l throwee $
-            updateSquare (fmap \e -> e {contents = cont' }) c w
+          return $ putLoot l throwee w
         Grab -> do
           let grabbee = step d c
           grab grabbee c w
