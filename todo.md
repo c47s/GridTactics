@@ -93,3 +93,13 @@
 
     *   [ ] Add Forms to UI\
             Will probably require adding lens stuff
+
+    *   [ ] Fix crash after some players leave - probably related to snapshot actormaps.
+
+    *   [ ] Enhance snapshots
+
+        *   [ ] Add log
+
+        *   [ ] Display action queue
+
+        *   [ ] Display inventory (only for your own pawns!)

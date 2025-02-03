@@ -140,7 +140,6 @@ renderSquare s sq =
         )
         . vLimit 2 . hLimit 5 . center . vBox . sq2Txts $ sq
     where
-
         sq2Txts :: Square -> [Widget Name]
         sq2Txts Nothing = [txt " ",txt " "]
         sq2Txts (Just (Entity mID mname hp cont)) =
@@ -153,9 +152,10 @@ renderSquare s sq =
             where
                 showOrder :: Maybe UID -> Widget Name
                 showOrder Nothing = txt ""
-                showOrder (Just aID) = maybe (txt "?!")
-                        (txt . ("#" <>) . show . (+ 1)) $
-                        elemIndex aID (currOrder s)
+                showOrder (Just aID) = if viewingReplay s then txt "#?"
+                                       else maybe (txt "?!")
+                                            (txt . ("#" <>) . show . (+ 1)) $
+                                            elemIndex aID (currOrder s)
                 
                 hpTxt :: Widget Name
                 hpTxt = if hp > 0 || isJust ((`elemIndex` currOrder s) =<< mID)

@@ -59,12 +59,12 @@ selDirAct a s = s & case currAction s of
 -- | Grab and cache info from the server
 updateFromServer :: AppState -> EventM Name AppState
 updateFromServer s = do
-    currActor' <- inApp s $ getActor  $ currActorID s
-    nextActor' <- inApp s $ getActor  $ nextActorID s
-    currView'  <- inApp s $ look      $ currActorID s
-    currMap'   <- inApp s $ multiLook $ toList $ actorIDs s
+    currActor'  <- inApp s $ getActor  $ currActorID s
+    nextActor'  <- inApp s $ getActor  $ nextActorID s
+    currView'   <- inApp s $ look      $ currActorID s
+    currMap'    <- inApp s $ multiLook $ toList $ actorIDs s
     currReplay' <- inApp s $ roundLook $ toList $ actorIDs s
-    currDone'  <- inApp s $ getDone   $ currActorID s
+    currDone'   <- inApp s $ getDone   $ currActorID s
     currNumDone' <- inApp s getNumDone
     currNames' <- inApp s actorNames
     currOrder' <- inApp s getTurnOrder
@@ -81,11 +81,11 @@ updateFromServer s = do
         }
 
 startEvent :: AppState -> EventM Name AppState
-startEvent = updateFromServer <=< (activateMouseMode $>)
+startEvent = (activateMouseMode $>) >=> updateFromServer
 
 -- | Continue after updating cached values from server
 continue' :: AppState -> EventM Name (Next AppState)
-continue' = continue <=< updateFromServer
+continue' = updateFromServer >=> continue
 
 quit :: AppState -> EventM Name (Next AppState)
 quit s = do

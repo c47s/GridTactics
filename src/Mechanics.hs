@@ -30,6 +30,7 @@ module Mechanics
     , getDir
     , isRanged
 
+    , Snapshot (..)
     , World (..)
     ) where
 
@@ -238,17 +239,17 @@ data UndirAction
 
 cost :: Action -> Loot
 cost (Dir Move _)      = mempty
-cost (Dir Shoot _)     = singloot Actions 1
+cost (Dir Shoot _)     = singloot Actions 1 <> singloot Hearts 1
 cost (Dir Blast _)     = singloot Actions 2 <> singloot Hearts 4
 cost (Dir (Throw l) _) = l
 cost (Dir Grab _)      = singloot Actions 1
-cost (Dir Repair _)    = singloot Actions 2 <> singloot Hearts 1
+cost (Dir Repair _)    = singloot Actions 4 <> singloot Hearts 1
 cost (Dir (Build n) _) = singloot Hearts n
-cost (Undir RepairMe)  = singloot Actions 3 <> singloot Hearts 1
+cost (Undir RepairMe)  = singloot Actions 6 <> singloot Hearts 1
 cost (Undir ShootMe)   = singloot Actions (-1)
 cost (Undir Recycle)   = singloot Actions (-1) <> singloot Hearts 2
 cost (Undir UpRange)   = singloot Actions 2
-cost (Undir UpVision)  = singloot Actions 3
+cost (Undir UpVision)  = singloot Actions 4
 cost (Undir Wait)      = mempty
 
 getDir :: Action -> Maybe Direction
@@ -264,6 +265,12 @@ isRanged (Dir _ _) = False
 
 
 {- {- {- WORLD -} -} -}
+
+data Snapshot = Snapshot
+  { actorStates :: Map UID Actor
+  , actorCoords :: Map UID Coords
+  , gridState :: Grid
+  } deriving stock (Generic)
 
 -- A bunch of squares that may contain at most one Entity each.
 -- Should also have a lookup table that finds the location of a given Actor,
@@ -287,7 +294,7 @@ class World w where
   shuffleTurnOrder :: w -> w -- ^ Shuffle the turnOrder
   origin :: w -> Maybe Coords -- ^ (0, 0) - Top left corner
   extent :: w -> Maybe Coords -- ^ Bottom right corner. With origin, draws a bounding box, if applicable.
-  snapshots :: w -> Seq (Seq (Map UID Actor, Map UID Coords, Grid)) -- ^ Views of the world after each action, divided by turn.
+  snapshots :: w -> Seq (Seq Snapshot) -- ^ Views of the world after each action, divided by turn.
   takeSnapshot :: w -> w -- ^ Take a snapshot
   newSnapTurn :: w -> w -- ^ Start the next subsequence of snapshots
 
@@ -329,7 +336,10 @@ class World w where
 
   roundView :: [UID] -> w -> Seq Grid
   roundView aIDs w =
-      ( \(aMap, cMap, g) -> let
+      ( \s -> let
+          aMap = actorStates s
+          cMap = actorCoords s
+          g = gridState s
           vision' aID = let (x, y) = wrapCoords w $ cMap Map.! aID
             in if maybe 10 health (g !! y !! x) > 0
               then baseVision (aMap Map.! aID)
@@ -479,7 +489,7 @@ class World w where
           guard . passable . getSquare destination $ w
           return . move c destination $ w
         Shoot -> let target = project1 c d (range act) (hittable . fst) w
-          in return $ hit target w
+          in return $ putLoot (singloot Hearts 1) target $ hit target w
         Blast -> flip execStateT w do
           let target = project1 c d (range act) (hittable . fst) w
           let splash = fmap (`step` target) universe

@@ -23,7 +23,7 @@ data SeqWorld = SeqWorld
   , actors' :: IntMap Actor
   , turnOrder' :: [UID]
   , nextUID :: Int
-  , snapshots' :: Seq (Seq (Map UID Actor, Map UID Coords, Grid))
+  , snapshots' :: Seq (Seq Snapshot)
   }
 
 wrap :: Int -> Coords -> Coords
@@ -52,10 +52,12 @@ instance World SeqWorld where
         (snss :|> sns) -> snss :|> (sns :|> snapshot)
         Empty -> fromList [fromList [snapshot]]
     }
-    where snapshot = ( Map.fromList [(aID, lookupActor aID w) | aID <- actors w]
-                     , Map.fromList [(aID, findActor aID w) | aID <- actors w]
-                     , multiView [(width w, (0, 0))] w
-                     )
+    where
+      snapshot = Snapshot
+        { actorStates = Map.fromList [(aID, lookupActor aID w) | aID <- actors w]
+        , actorCoords = Map.fromList [(aID, findActor aID w) | aID <- actors w]
+        , gridState = multiView [(width w, (0, 0))] w
+        }
   
   newSnapTurn w = w { snapshots' = snapshots' w :|> mempty }
 
