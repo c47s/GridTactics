@@ -159,7 +159,7 @@ renderSquare s sq =
                 
                 hpTxt :: Widget Name
                 hpTxt = if hp > 0 || isJust ((`elemIndex` currOrder s) =<< mID)
-                    then padLeft Max . txt $ "♥︎" <> show hp
+                    then padLeft Max . txt $ "❤︎" <> show hp
                     else txt " "
 
 resType2Text :: Resource -> Text
@@ -213,7 +213,7 @@ dir2Text NW = "↖︎"
 
 act2Text :: Action -> Text
 act2Text (Dir (Throw loot) dir) = dir2Text dir <> " Throw " <> loot2Text loot
-act2Text (Dir (Build n) dir) = dir2Text dir <> " Build ♥︎" <> show n
+act2Text (Dir (Build n) dir) = dir2Text dir <> " Build ❤︎" <> show n
 act2Text (Dir act dir) = dir2Text dir <> " " <> show act <> " "
 act2Text actn = basicAct2Text actn
 
@@ -259,7 +259,7 @@ draw s = let
     dispDActCost actn = clickable (dirActBtn actn) . txt $ loot2TextShort (cost (Dir actn N))
     dispUActCost actn = clickable (undirActBtn actn) . txt $
             loot2TextShort (cost $ Undir actn)
-            <> if actn == ShootMe then " ♥︎1" else ""
+            <> if actn == ShootMe then " ❤︎1" else ""
 
     dispDActBinds acts =
         [

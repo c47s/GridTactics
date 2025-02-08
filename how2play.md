@@ -16,13 +16,13 @@ Once you're comfortably situated and no-one can see your screen, press `y` to en
        Living Pawn
          ┌─────┐
  Name -> │Zau  │
- Init -> │#3 ♥︎2│ <- Health
+ Init -> │#3 ❤︎2│ <- Health
          └─────┘
 ```
 ```
         Dead Pawn
          ┌─────┐
- Init -> │#2 ♥︎0│ <- Health
+ Init -> │#2 ❤︎0│ <- Health
 Juice -> │3J 4S│ <- Scrap
          └─────┘
 ```
@@ -35,7 +35,7 @@ You can click a green pawn to switch to it.
 ```
           Wall
          ┌─────┐
-         │   ♥︎2│ <- Health
+         │   ❤︎2│ <- Health
 Juice -> │1J 1S│ <- Scrap
          └─────┘
 ```
