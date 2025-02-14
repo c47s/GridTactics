@@ -1,10 +1,14 @@
 # How to Play
 
+## Installing GridTactics
+
+Just clone the repository, install [stack](https://docs.haskellstack.org/en/stable/), then `cd GridTactics` into thr base directory and use `stack run Server` or `stack run Client` to automatically compile and run the desired program. Might take a while the first time, what with all the dependencies.
+
 ## Starting a Game
 
-To create a world, run the Server program and choose a port. The default `42069` should be fine. If you don't know what options to choose, just keep hitting enter until you see `Starting Server...`
+To create a world, run the Server and choose a port. The default `42069` should be fine. If you don't know what options to choose, just keep hitting enter until you see `Starting Server...`
 
-Next, each player should run the Client program on the same machine as the Server. Accept the default hostname, `localhost`, and enter the same port the Server is using. If people are playing on different machines, they should log in to the same machine via `ssh` or a similar service, then run Client.
+Next, each player should run the Client on the same machine as the Server. I'd recommend that each person play on a different machine and then log in to the server machine via `ssh` or similar. Accept the default hostname, `localhost`, and enter the same port the Server is using.
 
 Once you're comfortably situated and no-one can see your screen, press `y` to enter your tactical control panel.
 
