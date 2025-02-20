@@ -41,6 +41,7 @@ common common-options
                      , servant-flatten
                      , utility-ht
                      , vty
+                     , vty-crossplatform
                      , warp
                      , zippers
                      , wai-logger

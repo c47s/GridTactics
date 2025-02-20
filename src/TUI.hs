@@ -67,19 +67,19 @@ nextActorID = fromJust . (Seq.!? 0) . rotate . actorIDs
 
 
 selfAttr :: AttrName
-selfAttr = "selfAttr"
+selfAttr = attrName "selfAttr"
 
 friendlyAttr :: AttrName
-friendlyAttr = "friendlyAttr"
+friendlyAttr = attrName "friendlyAttr"
 
 hostileAttr :: AttrName
-hostileAttr = "hostileAttr"
+hostileAttr = attrName "hostileAttr"
 
 wallAttr :: AttrName
-wallAttr = "wallAttr"
+wallAttr = attrName "wallAttr"
 
 fogAttr :: AttrName
-fogAttr = "fogAttr"
+fogAttr = attrName "fogAttr"
 
 
 data UIAction

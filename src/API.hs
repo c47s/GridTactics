@@ -26,7 +26,6 @@ module API
     , runServer
     ) where
 
-import           Control.Monad.Except
 import           Data.Aeson 
 import qualified Deque.Lazy as D
 import           Mechanics

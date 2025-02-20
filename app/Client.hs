@@ -6,12 +6,11 @@ import           Brick
 import           Brick.BChan
 import           Brick.Main
 import           Control.Concurrent (forkIO, threadDelay)
-import           Control.Monad.Except
 import qualified Data.Bimap as Bap
 import qualified Data.Sequence as Seq
 import qualified Data.Text as T
-import           Graphics.Vty
 import           Graphics.Vty as V hiding (Default)
+import           Graphics.Vty.CrossPlatform
 import           GridTactics hiding (World(..))
 import           Network.HTTP.Client
 import           Relude
@@ -23,7 +22,7 @@ import           System.Random hiding (next)
 
 
 -- | Run an API client request, getting the ClientEnv from the given app.
-inApp :: AppState -> ReaderT ClientEnv (EventM Name) a -> EventM Name a
+inApp :: AppState -> ReaderT ClientEnv (EventM Name AppState) a -> EventM Name AppState a
 inApp s r = runReaderT r (clientEnv s)
 
 newtype GTEvent = Tick Int -- ^ Number of seconds since app start
@@ -33,8 +32,14 @@ gtApp :: App AppState GTEvent Name
 gtApp = App
     { appDraw = draw
     , appChooseCursor = neverShowCursor
-    , appHandleEvent = handleEvent
-    , appStartEvent = startEvent
+
+    -- These odd `get >>=' constructions,
+    -- relics of porting from an older Brick version,
+    -- suggest how we might refactor handleEvent, startEvent;
+    -- but why bother; it works !
+    , appHandleEvent = \e -> get >>= flip handleEvent e
+    , appStartEvent = get >>= startEvent
+
     , appAttrMap = const $ attrMap defAttr
         [ (selfAttr, bg V.blue)
         , (friendlyAttr, bg V.green)
@@ -57,7 +62,7 @@ selDirAct a s = s & case currAction s of
         (fromMaybe N . asum . fmap getDir . queue $ currActor s)
 
 -- | Grab and cache info from the server
-updateFromServer :: AppState -> EventM Name AppState
+updateFromServer :: AppState -> EventM Name AppState ()
 updateFromServer s = do
     currActor'  <- inApp s $ getActor  $ currActorID s
     nextActor'  <- inApp s $ getActor  $ nextActorID s
@@ -68,7 +73,7 @@ updateFromServer s = do
     currNumDone' <- inApp s getNumDone
     currNames' <- inApp s actorNames
     currOrder' <- inApp s getTurnOrder
-    return s
+    put s
         { currActor = currActor'
         , nextActor = nextActor'
         , currView = currView'
@@ -80,51 +85,51 @@ updateFromServer s = do
         , currOrder = currOrder'
         }
 
-startEvent :: AppState -> EventM Name AppState
+startEvent :: AppState -> EventM Name AppState ()
 startEvent = (activateMouseMode $>) >=> updateFromServer
 
 -- | Continue after updating cached values from server
-continue' :: AppState -> EventM Name (Next AppState)
-continue' = updateFromServer >=> continue
+continue' :: AppState -> EventM Name AppState ()
+continue' = updateFromServer >=> return
 
-quit :: AppState -> EventM Name (Next AppState)
+quit :: AppState -> EventM Name AppState ()
 quit s = do
     traverse_ (inApp s <$> quitActor) (actorIDs s)
-    halt s
+    halt
 
-toggleDone :: UID -> AppState -> EventM Name (Next AppState)
+toggleDone :: UID -> AppState -> EventM Name AppState ()
 toggleDone aID s = inApp s do
     thisDone <- getDone aID
     _ <- setDone aID $ not thisDone
     lift $ continue' s
 
-doUIAction :: UIAction -> AppState -> EventM Name (Next AppState)
-doUIAction (SelUndirAct a) s = continue $ selUndirAct a s
-doUIAction (SelDirAct a) s = continue $ selDirAct a s
-doUIAction Increment s = continue case currAction s of
+doUIAction :: UIAction -> AppState -> EventM Name AppState ()
+doUIAction (SelUndirAct a) s = put $ selUndirAct a s
+doUIAction (SelDirAct a) s = put $ selDirAct a s
+doUIAction Increment s = put case currAction s of
     Dir (Throw l) d -> s {currAction = Dir (Throw (l <> singloot (currResource s) 1)) d}
     Dir (Build n) d -> s {currAction = Dir (Build $ n + 1) d}
     _ -> s
-doUIAction Decrement s = continue case currAction s of
+doUIAction Decrement s = put case currAction s of
     Dir (Throw l) d -> s {currAction = Dir (Throw $ maybeToMonoid (l `without` singloot (currResource s) 1)) d}
     Dir (Build n) d -> s {currAction = Dir (Build $ max 0 $ n - 1) d}
     _ -> s
-doUIAction RotL s = continue if viewingReplay s
+doUIAction RotL s = put if viewingReplay s
     then s { replayIndex = max 0 (replayIndex s - 1)
            , replayTick = replayTick s + 10
            }
     else case currAction s of
         Dir a d -> s {currAction = Dir a (prev d)}
         _ -> s
-doUIAction RotR s = continue if viewingReplay s
+doUIAction RotR s = put if viewingReplay s
     then s { replayIndex = min (length (currReplay s) - 1) (replayIndex s + 1)
            , replayTick = replayTick s + 10
            }
     else case currAction s of
         Dir a d -> s {currAction = Dir a (next d)}
         _ -> s
-doUIAction RotL' s = continue $ s {currResource = prev . currResource $ s}
-doUIAction RotR' s = continue $ s {currResource = next . currResource $ s}
+doUIAction RotL' s = put $ s {currResource = prev . currResource $ s}
+doUIAction RotR' s = put $ s {currResource = next . currResource $ s}
 doUIAction PlayerL s = continue' if True -- changingPlayers s
     then s {actorIDs = etator $ actorIDs s}
     else s {changingPlayers = True}
@@ -138,7 +143,7 @@ doUIAction Yes s = continue' $ if changingPlayers s
         , changingPlayers = False
         }
     else s
-doUIAction No s = continue $ if changingPlayers s
+doUIAction No s = put $ if changingPlayers s
     then s { changingPlayers = False
             , actorIDs = rotateTo (currActorID s) $ actorIDs s
             }
@@ -162,8 +167,8 @@ doUIAction DisownPawn s = continue' $ s {actorIDs = Seq.filter (/= currActorID s
 doUIAction Quit s = quit s
 doUIAction (Also uiA) s = doUIAction uiA s
 
-handleEvent :: AppState -> BrickEvent Name GTEvent -> EventM Name (Next AppState)
-handleEvent s (VtyEvent (EvKey key _modifiers)) = maybe continue doUIAction (Bap.lookup key (keybinds s)) s
+handleEvent :: AppState -> BrickEvent Name GTEvent -> EventM Name AppState ()
+handleEvent s (VtyEvent (EvKey key _modifiers)) = maybe put doUIAction (Bap.lookup key (keybinds s)) s
 handleEvent s (MouseDown (Btn uiAct) _ _ _) = doUIAction uiAct s
 handleEvent s (AppEvent (Tick n)) = do
     let s' = if viewingReplay s && n >= replayTick s
@@ -174,12 +179,12 @@ handleEvent s (AppEvent (Tick n)) = do
                 , replayTick = n + round (30 * 0.99 ^ (replayIndex s + 1) :: Double)
                 }
         else s
-    s' & if currDone s || n `mod` 500 == 0 then continue' else continue
-handleEvent s _otherEvent = continue s
+    s' & if currDone s || n `mod` 500 == 0 then continue' else put
+handleEvent s _otherEvent = put s
 
 
 
-activateMouseMode :: EventM n ()
+activateMouseMode :: EventM n AppState ()
 activateMouseMode = do
   vty <- Brick.Main.getVtyHandle
   let output = outputIface vty
