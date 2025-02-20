@@ -37,6 +37,7 @@ module Mechanics
 import           Brick.Util (clamp)
 import           Control.Monad.Morph
 import           Control.Zipper
+import           Data.Aeson (FromJSON, ToJSON)
 import           Data.Composition
 import           Data.Map.Merge.Strict
 import qualified Data.Map.Strict as Map

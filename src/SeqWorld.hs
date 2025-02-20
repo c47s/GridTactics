@@ -1,8 +1,11 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 module SeqWorld
     ( SeqWorld
     ) where
 
 
+import           Data.Aeson (FromJSON, ToJSON)
 import qualified Data.IntMap.Strict as IM
 import qualified Data.Map.Strict as Map
 import qualified Data.Sequence as Seq
@@ -14,6 +17,7 @@ import           Relude
 import           Relude.Unsafe (fromJust)
 import           System.Random
 import           System.Random.Shuffle
+import           WebInstances ()
 
 data SeqWorld = SeqWorld
   { gen' :: StdGen
@@ -24,7 +28,8 @@ data SeqWorld = SeqWorld
   , turnOrder' :: [UID]
   , nextUID :: Int
   , snapshots' :: Seq (Seq Snapshot)
-  }
+  } deriving stock Generic
+    deriving anyclass (FromJSON, ToJSON)
 
 wrap :: Int -> Coords -> Coords
 wrap n = both (`mod` n)

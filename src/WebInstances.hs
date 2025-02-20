@@ -3,10 +3,11 @@
 
 module WebInstances () where
 
-import Data.Aeson (FromJSONKey, ToJSON, FromJSON, ToJSONKey)
+import Data.Aeson
 import Deque.Lazy (Deque)
 import Mechanics
 import Relude
+import System.Random
 import Web.HttpApiData
 
 
@@ -58,3 +59,12 @@ instance AutoDequeJSON DirAction
 instance ToJSON UndirAction
 instance FromJSON UndirAction
 instance AutoDequeJSON UndirAction
+
+instance FromJSON Snapshot
+instance ToJSON Snapshot
+
+-- Load a dummy value !
+instance FromJSON StdGen where
+   parseJSON _ = return $ mkStdGen 0
+instance ToJSON StdGen where
+   toJSON s = object ["state" .= (show s :: Text)]
