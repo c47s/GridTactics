@@ -269,14 +269,16 @@ isRanged (Dir _ _) = False
 data Snapshot = Snapshot
   { actorStates :: Map UID Actor
   , actorCoords :: Map UID Coords
+  , actorOrder :: Seq UID
   , gridState :: Grid
   } deriving stock (Generic)
 
 -- A bunch of squares that may contain at most one Entity each.
 -- Should also have a lookup table that finds the location of a given Actor,
 --   and a list of all empty squares,
---   and a StdGen.
-class World w where
+--   and a StdGen,
+--   and a log of previous game states!
+class (FromJSON w, ToJSON w) => World w where
   mkWorld :: StdGen -> Int -> w -- ^ Given a StdGen and the desired size, make a World.
   splitGen :: State w StdGen -- ^ Get a StdGen by splitting the World's internal StdGen
   empties :: w -> [Coords] -- ^ All empty squares
@@ -318,7 +320,8 @@ class World w where
   chActorPos c = updateActor \a -> a {coords = c}
 
   delActor :: UID -> w -> w
-  delActor aID w = _unaddActor aID . updateSquare (const Nothing) (findActor aID w) $ w
+  delActor aID w = _unaddActor aID . 
+      updateSquare (const Nothing) (findActor aID w) $ w
 
   actor :: w -> Entity -> Maybe Actor
   actor w e = flip lookupActor w <$> actorID e
@@ -340,11 +343,17 @@ class World w where
           aMap = actorStates s
           cMap = actorCoords s
           g = gridState s
-          vision' aID = let (x, y) = wrapCoords w $ cMap Map.! aID
-            in if maybe 10 health (g !! y !! x) > 0
-              then baseVision (aMap Map.! aID)
-              else 0
-          views = ((\aID -> (vision' aID, cMap Map.! aID)) <$> aIDs)
+          vision' aID = do
+            (x, y) <- wrapCoords w <$> cMap Map.!? aID
+            if maybe 10 health (g !! y !! x) > 0
+              then baseVision <$> (aMap Map.!? aID)
+              else return 0
+          views = catMaybes $
+            (\aID -> do
+              r <- vision' aID
+              c <- cMap Map.!? aID
+              return (r, c)
+            ) <$> aIDs
         in
           multiViewVia (\c _ -> g !! snd c !! fst c) views w
       ) <$> fromMaybe Empty (lookup (length (snapshots w) - 1) (snapshots w))

@@ -109,12 +109,20 @@ doUIAction Decrement s = continue case currAction s of
     Dir (Throw l) d -> s {currAction = Dir (Throw $ maybeToMonoid (l `without` singloot (currResource s) 1)) d}
     Dir (Build n) d -> s {currAction = Dir (Build $ max 0 $ n - 1) d}
     _ -> s
-doUIAction RotL s = continue case currAction s of
-    Dir a d -> s {currAction = Dir a (prev d)}
-    _ -> s
-doUIAction RotR s = continue case currAction s of
-    Dir a d -> s {currAction = Dir a (next d)}
-    _ -> s
+doUIAction RotL s = continue if viewingReplay s
+    then s { replayIndex = max 0 (replayIndex s - 1)
+           , replayTick = replayTick s + 10
+           }
+    else case currAction s of
+        Dir a d -> s {currAction = Dir a (prev d)}
+        _ -> s
+doUIAction RotR s = continue if viewingReplay s
+    then s { replayIndex = min (length (currReplay s) - 1) (replayIndex s + 1)
+           , replayTick = replayTick s + 10
+           }
+    else case currAction s of
+        Dir a d -> s {currAction = Dir a (next d)}
+        _ -> s
 doUIAction RotL' s = continue $ s {currResource = prev . currResource $ s}
 doUIAction RotR' s = continue $ s {currResource = next . currResource $ s}
 doUIAction PlayerL s = continue' if True -- changingPlayers s

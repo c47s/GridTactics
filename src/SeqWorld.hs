@@ -56,6 +56,7 @@ instance World SeqWorld where
       snapshot = Snapshot
         { actorStates = Map.fromList [(aID, lookupActor aID w) | aID <- actors w]
         , actorCoords = Map.fromList [(aID, findActor aID w) | aID <- actors w]
+        , actorOrder = fromList . reverse $ turnOrder w
         , gridState = multiView [(width w, (0, 0))] w
         }
   

@@ -345,6 +345,7 @@ draw s = let
     centerContent = vBox . fmap hCenter $
         if viewingReplay s
             then [ txt "Round Replay"
+                 , txt $ dispBind RotL <> " and " <> dispBind RotR <> " move through time"
                  , replayTable
                  ]
             else [ txt ("You are " <> aname me)
