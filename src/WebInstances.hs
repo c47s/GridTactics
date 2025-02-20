@@ -9,6 +9,8 @@ import Mechanics
 import Relude
 import System.Random
 import Web.HttpApiData
+import System.Random.SplitMix
+import System.Random.Internal
 
 
 -- Automatically infer to/fromJSON instances for Deques of AutoDequeJSON instances
@@ -63,8 +65,17 @@ instance AutoDequeJSON UndirAction
 instance FromJSON Snapshot
 instance ToJSON Snapshot
 
--- Load a dummy value !
+-- Depends on internal implementation of StdGen !!!!
+-- TODO: Use random-1.3.0 Seed API instead.
+-- In we can ever upgrade to 1.3.0 ...
+-- MonadRandom compatibility pleeease ....
 instance FromJSON StdGen where
-   parseJSON _ = return $ mkStdGen 0
+   parseJSON = withObject "StdGen" $ \obj -> do
+      seed <- obj .: "seed"
+      gamma <- obj .: "gamma"
+      return $ StdGen (seedSMGen seed gamma)
 instance ToJSON StdGen where
-   toJSON s = object ["state" .= (show s :: Text)]
+   toJSON gen = object [ "seed" .= seed
+                       , "gamma" .= gamma
+                       ]
+      where (seed, gamma) = unseedSMGen $ unStdGen gen

@@ -39,6 +39,7 @@ common common-options
                      , servant-client
                      , servant-server
                      , servant-flatten
+                     , splitmix
                      , utility-ht
                      , vty
                      , vty-crossplatform
