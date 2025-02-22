@@ -18,8 +18,8 @@ main = runInputT defaultSettings do
 
     outputStrLn ""
     wSize <- untilValidAnd gr0 do
-        outputStrLn "Enter world width:"
-        getInputLineWithInitial "> " ("11","")
+        outputStrLn "Enter world radius:"
+        getInputLineWithInitial "> " ("5","")
     
     outputStrLn ""
     pawnsPerClient' <- untilValidAnd gr0 do

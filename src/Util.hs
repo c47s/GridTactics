@@ -193,3 +193,10 @@ etatorTo x = uncurry (flip (><)) . Seq.breakr (== x)
 
 type Modify ts a = Get ts a
               :<|> ReqBody ts a :> PostNoContent
+
+
+
+-- Tuples
+
+sumPairs :: (Num a, Num b) => [(a, b)] -> (a, b)
+sumPairs = foldl' (\(s1, c1) (s2, c2) -> (s1+s2, c1+c2)) (0, 0)

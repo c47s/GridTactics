@@ -43,6 +43,7 @@ import           Data.Map.Merge.Strict
 import qualified Data.Map.Strict as Map
 import           Data.Sequence (Seq(..), lookup)
 import qualified Data.Set as Set
+import           Data.Tuple.Extra (both)
 import qualified Deque.Lazy as D
 import           Deque.Lazy (Deque)
 import           Prelude (maximum, minimum, until)
@@ -284,7 +285,9 @@ class (FromJSON w, ToJSON w) => World w where
   splitGen :: State w StdGen -- ^ Get a StdGen by splitting the World's internal StdGen
   empties :: w -> [Coords] -- ^ All empty squares
   actors :: w -> [UID] -- ^ All actors
-  wrapCoords :: w -> Coords -> Coords -- ^ Transform Coords into a canonical space. i.e. for a toroidal world, take modulus of each coordinate
+  wrapAround :: Coords -> w -> Coords -> Coords -- ^ Wrap coords, placing seam(s) as far as possible from the center
+  wrapCoords :: w -> Coords -> Coords -- ^ Wrap to the canonical coordinates
+  avgPos :: w -> [Coords] -> Coords -- ^ Get a position in the middle of some coords
   getSquare :: Coords -> w -> Square
   lookupActor :: UID -> w -> Actor
   updateActor :: (Actor -> Actor) -> UID -> w -> w
@@ -299,7 +302,7 @@ class (FromJSON w, ToJSON w) => World w where
   extent :: w -> Maybe Coords -- ^ Bottom right corner. With origin, draws a bounding box, if applicable.
   snapshots :: w -> Seq (Seq Snapshot) -- ^ Views of the world after each action, divided by turn.
   takeSnapshot :: w -> w -- ^ Take a snapshot
-  newSnapTurn :: w -> w -- ^ Start the next subsequence of snapshots
+  newSnapTurn :: w -> w -- ^ Start the next subsequence of snapshots  
 
   register :: Actor -> StateT w Maybe UID -- Register this Actor in the World.
   register a = do
@@ -341,6 +344,12 @@ class (FromJSON w, ToJSON w) => World w where
   roundView :: [UID] -> w -> Seq Grid
   roundView aIDs w =
       ( \s -> let
+          -- Why do we need to offset wrapAround avgPos-based grids?
+          -- And why only for roundView?
+          -- What gives !
+          offset = if isJust $ origin w
+            then id
+            else both (subtract 1)
           aMap = actorStates s
           cMap = actorCoords s
           g = gridState s
@@ -352,16 +361,20 @@ class (FromJSON w, ToJSON w) => World w where
           views = catMaybes $
             (\aID -> do
               r <- vision' aID
-              c <- cMap Map.!? aID
+              c <- offset <$> cMap Map.!? aID
               return (r, c)
             ) <$> aIDs
         in
-          multiViewVia (\c _ -> g !! snd c !! fst c) views w
+          multiViewVia (\c _ -> let c' = wrapCoords w c in g !! snd c' !! fst c') views w
       ) <$> fromMaybe Empty (lookup (length (snapshots w) - 1) (snapshots w))
 
   multiViewVia :: (Coords -> w -> Square) -> [(Int, Coords)] -> w -> Grid
   multiViewVia getSquare' views w = let
-      visibleCoords = Set.fromList $ views >>= (\(r, c) -> concat [[wrapCoords w $ bimap (+ x) (+ y) c | x <- [- r .. r]] | y <- [- r .. r]])
+      wrap = fromMaybe (wrapCoords w) $ do
+        guard $ origin w == Nothing
+        let ctr = avgPos w $ snd <$> views
+        return $ wrapAround ctr w
+      visibleCoords = Set.fromList $ views >>= (\(r, c) -> concat [[wrap $ bimap (+ x) (+ y) c | x <- [- r .. r]] | y <- [- r .. r]])
       xs = Set.map (fst :: Coords -> Int) visibleCoords
       ys = Set.map (snd :: Coords -> Int) visibleCoords
       minX = maybe (minimum xs) fst $ origin w
@@ -371,6 +384,7 @@ class (FromJSON w, ToJSON w) => World w where
       getIfVisible c = if c `Set.member` visibleCoords
         then getSquare' c w
         else Just (Entity Nothing (Just "?") 0 mempty)
+        -- else Just (Entity Nothing Nothing 0 (singloot Actions x <> singloot Hearts y))
     in
       getIfVisible <<$>> ([[(x, y) | x <- [minX .. maxX]] | y <- [minY .. maxY]])
 

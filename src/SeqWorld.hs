@@ -17,11 +17,12 @@ import           Relude
 import           Relude.Unsafe (fromJust)
 import           System.Random
 import           System.Random.Shuffle
+import           Util
 import           WebInstances ()
 
 data SeqWorld = SeqWorld
   { gen' :: StdGen
-  , width :: Int
+  , radius :: Int
   , worldMap :: Seq (Seq Square)
   , empties' :: Set Coords
   , actors' :: IntMap Actor
@@ -31,13 +32,22 @@ data SeqWorld = SeqWorld
   } deriving stock Generic
     deriving anyclass (FromJSON, ToJSON)
 
+width :: SeqWorld -> Int
+width w = 2 * radius w + 1
+
+absoluteCoords :: SeqWorld -> Bool
+absoluteCoords w = width w <= 11
+
 wrap :: Int -> Coords -> Coords
 wrap n = both (`mod` n)
 
+_wrapCoords :: SeqWorld -> Coords -> Coords
+_wrapCoords = wrap . width
+
 instance World SeqWorld where
-  mkWorld gen sz = SeqWorld
+  mkWorld gen r = SeqWorld
     { gen' = gen
-    , width = sz
+    , radius = r
     , worldMap = fromList . replicate sz . fromList . replicate sz $ Nothing
     , empties' = fromList [(x,y) | x <- [0..sz - 1], y <- [0..sz - 1]]
     , actors' = IM.empty
@@ -45,9 +55,14 @@ instance World SeqWorld where
     , nextUID = 0
     , snapshots' = mempty
     }
+    where sz = 2 * r + 1
   
-  origin _ = Just (0, 0)
-  extent w = Just (width w - 1, width w - 1)
+  origin w = if absoluteCoords w
+    then Just (0, 0)
+    else Nothing
+  extent w = if absoluteCoords w
+    then Just (width w - 1, width w - 1)
+    else Nothing
 
 
   snapshots = snapshots'
@@ -62,7 +77,7 @@ instance World SeqWorld where
         { actorStates = Map.fromList [(aID, lookupActor aID w) | aID <- actors w]
         , actorCoords = Map.fromList [(aID, findActor aID w) | aID <- actors w]
         , actorOrder = fromList . reverse $ turnOrder w
-        , gridState = multiView [(width w, (0, 0))] w
+        , gridState = multiView [(radius w, (radius w + 1, radius w + 1))] w
         }
   
   newSnapTurn w = w { snapshots' = snapshots' w :|> mempty }
@@ -84,18 +99,32 @@ instance World SeqWorld where
     everyone <- gets actors
     modify \w -> w {turnOrder' = shuffle' everyone (length everyone) gen}
 
-  wrapCoords w = wrap (width w)
+  wrapAround (cx, cy) w (x, y) = bimap (+ offset cx) (+ offset cy) $
+    _wrapCoords w (x - offset cx, y - offset cy)
+      where offset cz = cz - radius w
+
+  wrapCoords = _wrapCoords
+
+  -- Applies circular mean to x and y coords.
+  -- Seems like a good approximation of centroid on a toroidally wrapping map,
+  -- but might introduce minor inaccuracies, maybe near the edges?
+  -- Because they say on StackOverflow that minimizing distance to a set of points
+  -- is not easy on a toroid!
+  -- Time will tell. Maybe.
+  avgPos w = both (round . circMean (fromIntegral $ width w :: Double) . fmap fromIntegral) . unzip
+    where circMean r = (* (r/(2*pi))) . uncurry atan2 . sumPairs . fmap ((sin &&& cos) . (* ((2*pi)/r)))
   
   -- index is justified because wrap forces the Coords within the index range of worldMap
   getSquare c w = flip Seq.index x . flip Seq.index y $ worldMap w
-    where (x, y) = wrapCoords w c
+    where (x, y) = _wrapCoords w c
 
   -- fromJust is justified because other functions should only be able to get valid UIDs from a World.
   -- As long as they aren't constructing their own UIDs
   -- or taking them from one World and using them in another, everything should be just fine. JUST FINE
   lookupActor aID = fromJust . IM.lookup (unwrapUID aID) . actors'
 
-  updateActor f aID w = w {actors' = IM.adjust f (unwrapUID aID) . actors' $ w}
+  updateActor f aID w = w {actors' = IM.adjust (wrapActor . f) (unwrapUID aID) . actors' $ w}
+    where wrapActor = \a -> a {coords = wrapCoords w $ coords a}
 
   _addActor a = do
     aID <- gets nextUID
@@ -112,9 +141,9 @@ instance World SeqWorld where
     if passable $ getSquare c w'
       then Set.insert
       else Set.delete
-    ) (wrap (width w) c) $ empties' w'
+    ) (_wrapCoords w c) $ empties' w'
     } )
-    $ let (x, y) = wrap (width w) c
+    $ let (x, y) = _wrapCoords w c
       in w {worldMap = Seq.adjust (Seq.adjust f x) y $ worldMap w}
   
   maxRange = const maxBound
