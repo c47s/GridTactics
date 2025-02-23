@@ -98,6 +98,13 @@ stateToIO ref s = liftIO do
 doState :: (MonadIO io) => State s a -> IORef s -> io a
 doState = flip stateToIO
 
+-- Access to IO within stateful code manipulating an IORef
+statefulIO :: (MonadIO io) => IORef s -> StateT s IO a -> io a
+statefulIO ref s = liftIO do
+    before <- liftIO $ readIORef ref
+    (value, after) <- runStateT s before
+    writeIORef ref after
+    return value
 
 
 -- MonadError

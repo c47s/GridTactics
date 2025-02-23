@@ -155,6 +155,8 @@ newtype UID = UID {unwrapUID :: Int}
 -- An Actor should always correspond to exactly one Entity in a World
 data Actor = Actor
   { aname :: Text
+  , owner :: Text
+  , ownID :: UID
   , coords :: Coords
   , range :: Int -- Shooting & throwing distance
   , baseVision :: Int -- Seeing distance (when alive!)
@@ -342,31 +344,36 @@ class (FromJSON w, ToJSON w) => World w where
   multiView = multiViewVia getSquare
 
   roundView :: [UID] -> w -> Seq Grid
-  roundView aIDs w =
-      ( \s -> let
-          -- Why do we need to offset wrapAround avgPos-based grids?
-          -- And why only for roundView?
-          -- What gives !
-          offset = if isJust $ origin w
-            then id
-            else both (subtract 1)
-          aMap = actorStates s
-          cMap = actorCoords s
-          g = gridState s
-          vision' aID = do
-            (x, y) <- wrapCoords w <$> cMap Map.!? aID
-            if maybe 10 health (g !! y !! x) > 0
-              then baseVision <$> (aMap Map.!? aID)
-              else return 0
-          views = catMaybes $
-            (\aID -> do
-              r <- vision' aID
-              c <- offset <$> cMap Map.!? aID
-              return (r, c)
-            ) <$> aIDs
-        in
-          multiViewVia (\c _ -> let c' = wrapCoords w c in g !! snd c' !! fst c') views w
-      ) <$> fromMaybe Empty (lookup (length (snapshots w) - 1) (snapshots w))
+  roundView aIDs w = let
+    replay = fromMaybe Empty $ lookup (length (snapshots w) - 1) (snapshots w)
+    in
+      if or . fmap (or . \s -> (`Map.notMember` actorStates s) <$> aIDs) $ replay
+        then Empty -- This replay predates our joining the game. Nothing to see.
+        else
+          ( \s -> let
+              -- Why do we need to offset wrapAround avgPos-based grids?
+              -- And why only for roundView?
+              -- What gives !
+              offset = if isJust $ origin w
+                then id
+                else both (subtract 1)
+              aMap = actorStates s
+              cMap = actorCoords s
+              g = gridState s
+              vision' aID = do
+                (x, y) <- wrapCoords w <$> cMap Map.!? aID
+                if maybe 10 health (g !! y !! x) > 0
+                  then baseVision <$> (aMap Map.!? aID)
+                  else return 0
+              views = catMaybes $
+                (\aID -> do
+                  r <- vision' aID
+                  c <- offset <$> cMap Map.!? aID
+                  return (r, c)
+                ) <$> aIDs
+            in
+              multiViewVia (\c _ -> let c' = wrapCoords w c in g !! snd c' !! fst c') views w
+          ) <$> replay
 
   multiViewVia :: (Coords -> w -> Square) -> [(Int, Coords)] -> w -> Grid
   multiViewVia getSquare' views w = let

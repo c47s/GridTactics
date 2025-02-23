@@ -129,7 +129,8 @@ instance World SeqWorld where
   _addActor a = do
     aID <- gets nextUID
     modify \w -> w {nextUID = aID + 1}
-    modify \w -> w {actors' = IM.insert aID a $ actors' w}
+    let a' = a {ownID = UID aID}
+    modify \w -> w {actors' = IM.insert aID a' $ actors' w}
     modify shuffleTurnOrder
     return $ UID aID
 

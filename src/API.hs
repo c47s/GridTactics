@@ -26,7 +26,8 @@ module API
     , runServer
     ) where
 
-import           Data.Aeson 
+import           Control.Concurrent.Async (race)
+import           Data.Aeson
 import qualified Deque.Lazy as D
 import           Mechanics
 import           Network.Wai.Handler.Warp
@@ -35,10 +36,15 @@ import           Relude
 import           Servant
 import           Servant.API.Flatten
 import           Servant.Client
+import           System.Posix.Signals hiding (Handler)
 import           Util
 import           WebInstances ()
 
 
+
+
+worldBakPath :: String
+worldBakPath = ".gridtac_bak.json"
 
 
 type ActorAPI = Capture "id" UID
@@ -75,7 +81,7 @@ type OrderAPI = "order" :> Get '[JSON] [UID]
 type NamesAPI = "names" :> Get '[JSON] [Text]
 
 type NewAPI = "new"
-    :> ReqBody '[JSON] Text -- Provide a name
+    :> ReqBody '[JSON] (Text, Text) -- Pawn name, Owner name
     :> Post '[JSON] UID
 
 type NumDoneAPI = "done" :> Get '[JSON] Int
@@ -139,12 +145,14 @@ hGetDone :: (World w) => UID -> Config -> IORef w -> Handler Bool
 hGetDone aID _conf = doState $ gets $ done . lookupActor aID
 
 hPostDone :: (World w) => UID -> Config -> IORef w -> Bool -> Handler NoContent
-hPostDone aID _conf ref isDone = stateToIO ref do
+hPostDone aID _conf ref isDone = statefulIO ref do
     modify $ updateActor (\a -> a {done = isDone}) aID
     nDone <- gets numDone
     nActors <- gets (length . actors)
-    when (nActors > 0 && nDone == nActors) $
+    when (nActors > 0 && nDone == nActors) $ do
         modify runTurn
+        w <- get
+        liftIO $ encodeFile worldBakPath w
     return NoContent
 
 hDone :: (World w) => UID -> Config -> IORef w -> Server DoneAPI
@@ -160,10 +168,12 @@ hOrder _conf = doState $ gets turnOrder
 hNames :: (World w) => Config -> IORef w -> Server NamesAPI
 hNames _conf = doState $ gets $ \w -> aname . flip lookupActor w <$> actors w
 
-hNew :: (World w) => Config -> IORef w -> Text -> Handler UID
-hNew conf ref name' = do
+hNew :: (World w) => Config -> IORef w -> (Text, Text) -> Handler UID
+hNew conf ref (name', owner') = do
     maybeAID <- stateToIO ref . maybeState $
-        scatterActor ((pawnTemplate conf) {ename=Just name'}) ((actorTemplate conf) {aname=name'})
+        scatterActor
+            ((pawnTemplate conf) {ename=Just name'})
+            ((actorTemplate conf) {aname=name', owner=owner'})
     hoistEither' . maybeToRight err500 $ maybeAID
 
 hNumDone :: (World w) => Config -> IORef w -> Server NumDoneAPI
@@ -176,9 +186,7 @@ hMultiView _conf ref aIDs = stateToIO ref do
 
 hRoundView :: (World w) => Config -> IORef w -> Server RoundViewAPI
 hRoundView _conf ref aIDs = stateToIO ref do
-    w <- get
-    pass -- to quiet hlint
-    return $ roundView aIDs w
+    roundView aIDs <$> get
 
 hActor :: (World w) => Config -> IORef w -> Server ActorAPI
 hActor conf ref aID = hActorSelf aID conf ref
@@ -220,7 +228,7 @@ setDone :: (MonadIO m) => UID -> Bool -> ReaderT ClientEnv m NoContent
 getActorIDs :: (MonadIO m) => ReaderT ClientEnv m [UID]
 getTurnOrder :: (MonadIO m) => ReaderT ClientEnv m [UID]
 actorNames :: (MonadIO m) => ReaderT ClientEnv m [Text]
-newActor :: (MonadIO m) => Text -> ReaderT ClientEnv m UID
+newActor :: (MonadIO m) => (Text, Text) -> ReaderT ClientEnv m UID
 getNumDone :: (MonadIO m) => ReaderT ClientEnv m Int
 multiLook :: (MonadIO m) => [UID] -> ReaderT ClientEnv m [[Square]]
 roundLook :: (MonadIO m) => [UID] -> ReaderT ClientEnv m (Seq Grid)
@@ -230,11 +238,23 @@ getActor :<|> quitActor :<|> look :<|> act :<|> delAct :<|> getDone :<|> setDone
     :<|> multiLook :<|> roundLook :<|> getConfig
     = hoistClient (flatten api) clientToReader $ client $ flatten api
 
-
+saveTheWorld :: (World w) => IORef w -> IO ()
+saveTheWorld wRef = do
+    w <- readIORef wRef
+    encodeFile worldBakPath w
 
 runServer :: (World w) => Int -> w -> Config -> IO ()
 runServer port initialWorld config = do
     wRef <- newIORef initialWorld
-    withStdoutLogger $ \aplogger -> do
+
+    termVar <- newEmptyMVar
+    let terminate = void $ tryPutMVar termVar ()
+    let waitForTermination = takeMVar termVar
+    let gracefulTerm = CatchOnce $ saveTheWorld wRef >> terminate
+
+    forM_ [softwareTermination, keyboardTermination, keyboardSignal] \sig ->
+        installHandler sig gracefulTerm Nothing
+
+    void $ race waitForTermination $ withStdoutLogger $ \aplogger -> do
         let settings = setPort port $ setLogger aplogger defaultSettings
         runSettings settings (serve api (hAPI config wRef))

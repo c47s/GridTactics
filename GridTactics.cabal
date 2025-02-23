@@ -21,11 +21,13 @@ source-repository head
 common common-options
   build-depends:       base
                      , aeson
+                     , async
                      , bimap
                      , brick
                      , composition
                      , containers
                      , deque
+                     , directory
                      , extra
                      , ghc
                      , haskeline
@@ -40,6 +42,7 @@ common common-options
                      , servant-server
                      , servant-flatten
                      , splitmix
+                     , unix
                      , utility-ht
                      , vty
                      , vty-crossplatform

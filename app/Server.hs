@@ -1,30 +1,20 @@
 module Server (main) where
 
+import Brick.Util (clamp)
+import Data.Aeson
+import Data.List.Extra (upper)
 import GridTactics
 import Relude
 import System.Console.Haskeline
 import System.Random
-import Brick.Util (clamp)
+import System.Directory (doesFileExist)
 
-main :: IO ()
-main = runInputT defaultSettings do
-    outputStrLn "Hello!"
-    outputStrLn $ "Welcome to the " ++ productName ++ " server."
-    
-    outputStrLn ""
-    port <- untilValidAnd nonNeg do
-        outputStrLn "Enter port:"
-        getInputLineWithInitial "> " ("42069","")
-
+buildWorld :: (World w) => InputT IO w
+buildWorld = do
     outputStrLn ""
     wSize <- untilValidAnd gr0 do
         outputStrLn "Enter world radius:"
         getInputLineWithInitial "> " ("5","")
-    
-    outputStrLn ""
-    pawnsPerClient' <- untilValidAnd gr0 do
-        outputStrLn "Enter number of pawns per client:"
-        getInputLineWithInitial "> " ("3", "")
 
     outputStrLn ""
     fillPortion <- untilValidAnd
@@ -51,6 +41,56 @@ main = runInputT defaultSettings do
         outputStrLn "(Juice placed inside scatters)"
         getInputLineWithInitial "> " ("0","")
 
+    gen <- getStdGen
+
+    let scatterE = (Entity
+            { actorID = Nothing
+            , ename = Nothing
+            , health = scatterHealth
+            , contents = singloot Actions scatterActions
+                      <> singloot Hearts scatterHearts
+            })
+
+    let w = fillFraction (fillPortion / 100 :: Double) scatterE
+            $ mkWorld gen wSize
+    
+    return w
+
+data YesNo = Y | N
+    deriving stock (Eq, Read)
+
+main :: IO ()
+main = runInputT defaultSettings do
+    outputStrLn "Hello!"
+    outputStrLn $ "Welcome to the " ++ productName ++ " server."
+    
+    outputStrLn ""
+    port <- untilValidAnd nonNeg do
+        outputStrLn "Enter port:"
+        getInputLineWithInitial "> " ("42069","")
+    
+    outputStrLn ""
+    loadBak <- untilValid do
+        outputStrLn "Attempt to load autosaved game?"
+        upper <<$>> getInputLineWithInitial "> " ("n","")
+    
+    bakExists <- liftIO $ doesFileExist ".gridtac_bak.json"
+
+    bakW <- if loadBak /= Y || not bakExists
+        then return Nothing
+        else liftIO $ decodeFileStrict ".gridtac_bak.json"
+
+    newW <- buildWorld
+
+    let w = fromMaybe newW bakW
+
+
+    
+    outputStrLn ""
+    pawnsPerClient' <- untilValidAnd gr0 do
+        outputStrLn "Enter number of pawns per client:"
+        getInputLineWithInitial "> " ("3", "")
+
     outputStrLn ""
     startHealth <- untilValidAnd gr0 do
         outputStrLn "Enter starting Health:"
@@ -65,19 +105,6 @@ main = runInputT defaultSettings do
     startActions <- untilValidAnd nonNeg do
         outputStrLn "Enter starting juice:"
         getInputLineWithInitial "> " ("1","")
-
-    gen <- getStdGen
-
-    let scatterE = (Entity
-            { actorID = Nothing
-            , ename = Nothing
-            , health = scatterHealth
-            , contents = singloot Actions scatterActions
-                      <> singloot Hearts scatterHearts
-            })
-
-    let w = fillFraction (fillPortion / 100 :: Double) scatterE
-            $ mkWorld gen wSize
 
     let constrange = check ("Must be at most " ++ show (maxRange w))
             (<= maxRange w)
@@ -105,6 +132,8 @@ main = runInputT defaultSettings do
                 }
             , actorTemplate = Actor
                 { aname = "TEMPLATE"
+                , owner = "NOBODY"
+                , ownID = UID (-1)
                 , coords = (0,0)
                 , range = startRange
                 , baseVision = startVision

@@ -7,6 +7,7 @@ import           Brick.BChan
 import           Brick.Main
 import           Control.Concurrent (forkIO, threadDelay)
 import qualified Data.Bimap as Bap
+import           Data.List.Extra
 import qualified Data.Sequence as Seq
 import qualified Data.Text as T
 import           Graphics.Vty as V hiding (Default)
@@ -93,9 +94,7 @@ continue' :: AppState -> EventM Name AppState ()
 continue' = updateFromServer >=> return
 
 quit :: AppState -> EventM Name AppState ()
-quit s = do
-    traverse_ (inApp s <$> quitActor) (actorIDs s)
-    halt
+quit _ = halt
 
 toggleDone :: UID -> AppState -> EventM Name AppState ()
 toggleDone aID s = inApp s do
@@ -260,25 +259,41 @@ main = runInputT defaultSettings do
 
     outputStrLn ""
     outputStrLn "Contacting server..."
-    config <- runReaderT getConfig env
-    
-    g1 <- newStdGen
-    g2 <- newStdGen
-    let baseName1 = randElem g1 frenchNames
-    let baseName2 = randElem g2 frenchNames
-    initActorIDs <- forM [1..(pawnsPerClient config)] $ \n -> do
-        outputStrLn ""
-        newName <- untilJustAnd nonBlank do
-            g3 <- newStdGen
-            g4 <- newStdGen
-            g5 <- newStdGen
-            let suggestedName = T.takeWhile (/= ' ') $ mixText g3 baseName1 $
-                    mixText g4 baseName2 (randElem g5 frenchNames)
-                    
+    config <- usingReaderT env getConfig
 
-            outputStrLn ("Enter pawn " <> show n <> " name:")
-            getInputLineWithInitial "> " (toString suggestedName,"")
-        runReaderT (newActor $ fromString newName) env
+
+    outputStrLn ""
+    username <- untilJust do
+        outputStrLn "Enter username:"
+        getInputLineWithInitial "> " ("","")
+
+    aIDs <- usingReaderT env getActorIDs
+    actors <- sequence $ usingReaderT env . getActor <$> aIDs
+    let myActors = filter ((== username) . toString . owner) actors
+
+
+    initActorIDs <- if notNull myActors
+        then return $ ownID <$> myActors
+        else do
+            g1 <- newStdGen
+            g2 <- newStdGen
+            let baseName1 = randElem g1 frenchNames
+            let baseName2 = randElem g2 frenchNames
+            
+            forM [1..(pawnsPerClient config)] $ \n -> do
+                outputStrLn ""
+                newName <- untilJustAnd nonBlank do
+                    g3 <- newStdGen
+                    g4 <- newStdGen
+                    g5 <- newStdGen
+                    let suggestedName = T.takeWhile (/= ' ') $ mixText g3 baseName1 $
+                            mixText g4 baseName2 (randElem g5 frenchNames)
+                            
+                    outputStrLn ("Enter pawn " <> show n <> " name:")
+                    getInputLineWithInitial "> " (toString suggestedName,"")
+                
+                usingReaderT env $ newActor (fromString newName, fromString username)
+
 
     let initialState = AppState
             { clientEnv = env
@@ -301,6 +316,7 @@ main = runInputT defaultSettings do
             , currNames = error "currNames not yet initialized"
             , currOrder = error "currOrder not yet initialized"
             }
+
 
     outputStrLn ""
     outputStrLn "Starting UI..."
