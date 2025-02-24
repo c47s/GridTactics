@@ -58,3 +58,4 @@ TAGS
 build
 result
 .gridtac_bak.json
+*.pem
