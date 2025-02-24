@@ -3,11 +3,13 @@ module Server (main) where
 import Brick.Util (clamp)
 import Data.Aeson
 import Data.List.Extra (upper)
+import Data.Time.Format
+import Data.Time.LocalTime
 import GridTactics
 import Relude
 import System.Console.Haskeline
-import System.Random
 import System.Directory (doesFileExist)
+import System.Random
 
 buildWorld :: (World w) => InputT IO w
 buildWorld = do
@@ -122,6 +124,26 @@ main = runInputT defaultSettings do
         outputStrLn "Enter starting vision distance:"
         getInputLineWithInitial "> " (show $ clamp 0 2 $ maxVision w,"")
 
+
+        
+    outputStrLn ""
+    runDaily <- untilValid do
+        outputStrLn "Evaluate just one round per day?"
+        upper <<$>> getInputLineWithInitial "> " ("n", "")
+    
+    runDailyAt' <- if runDaily /= Y
+        then return Nothing
+        else Just <$> do
+            outputStrLn ""
+            untilJust do
+                outputStrLn "Enter time of day to evaluate round:"
+                line <- getInputLineWithInitial "> " ("5:00", "")
+
+                let parseTime = parseTimeM True defaultTimeLocale "%-R"
+                tz <- liftIO getCurrentTimeZone
+                return $ timeOfDayToTime . snd . localToUTCTimeOfDay tz <$>
+                         (parseTime =<< line)
+
     let conf = Config 
             { pawnTemplate = Entity
                 { actorID = Nothing
@@ -141,6 +163,7 @@ main = runInputT defaultSettings do
                 , done = False
                 }
             , pawnsPerClient = pawnsPerClient'
+            , runDailyAt = runDailyAt'
             }
 
     outputStrLn "\nStarting Server..."

@@ -42,6 +42,8 @@ common common-options
                      , servant-server
                      , servant-flatten
                      , splitmix
+                     , time
+                     , unbounded-delays
                      , unix
                      , utility-ht
                      , vty

@@ -2,6 +2,7 @@ module Util
     ( module Util -- This module consists entirely of helper functions, so export everything!
     ) where
 
+import           Control.Concurrent.Thread.Delay (delay)
 import           Control.Monad.Except
 import           Data.Bool.HT ((?:))
 import           Data.Composition
@@ -9,6 +10,7 @@ import           Data.Maybe.HT
 import qualified Data.Sequence as Seq
 import           Data.Sequence (Seq((:<|), (:|>)), (<|), (|>), (><))
 import qualified Data.Text as T
+import           Data.Time.Clock
 import           GHC.Data.Maybe
 import           Prelude ((!!))
 import           Relude hiding ((?:))
@@ -38,7 +40,7 @@ untilValidAnd chk getInput = do
 untilValid :: (Read a, MonadIO m) => InputT m (Maybe String) -> InputT m a
 untilValid = untilValidAnd (const Nothing)
 
-untilJustAnd :: MonadIO m => Check String String -> InputT m (Maybe String) -> InputT m String
+untilJustAnd :: MonadIO m => Check a String -> InputT m (Maybe a) -> InputT m a
 untilJustAnd chk getInput = do
     ln <- getInput
     case ln of
@@ -51,7 +53,7 @@ untilJustAnd chk getInput = do
                 untilJustAnd chk getInput
             Nothing -> return s
 
-untilJust :: MonadIO m => InputT m (Maybe String) -> InputT m String
+untilJust :: MonadIO m => InputT m (Maybe a) -> InputT m a
 untilJust = untilJustAnd (const Nothing)
 
 check :: msg -> (a -> Bool) -> Check a msg
@@ -105,6 +107,7 @@ statefulIO ref s = liftIO do
     (value, after) <- runStateT s before
     writeIORef ref after
     return value
+
 
 
 -- MonadError
@@ -207,3 +210,34 @@ type Modify ts a = Get ts a
 
 sumPairs :: (Num a, Num b) => [(a, b)] -> (a, b)
 sumPairs = foldl' (\(s1, c1) (s2, c2) -> (s1+s2, c1+c2)) (0, 0)
+
+
+
+-- Threadery
+
+waitUntil :: UTCTime -> IO ()
+waitUntil targetTime = do
+    now <- getCurrentTime
+
+    let totalWait = diffUTCTime targetTime now
+
+    if totalWait < 30 * 60 -- 30 minutes
+        then delay $ round $ 1000000 * totalWait -- Convert to microseconds
+
+        else do
+            let margin = 2 / (30 * 60) -- Wait 2 seconds less per 30 minutes
+                mainWait = totalWait * (1 - margin)
+            
+            delay $ round $ 1000000 * nominalDiffTimeToSeconds mainWait
+
+            -- Wait more precisely for the last ~0.1% of the time.
+            -- This only goes into the else branch again for waits more than ~18 days
+            waitUntil targetTime
+
+waitUntilTimeOfDay :: DiffTime -> IO ()
+waitUntilTimeOfDay targetDayTime = do
+    UTCTime today theTime <- getCurrentTime
+    let targetTime = if theTime < targetDayTime
+                     then UTCTime today targetDayTime
+                     else UTCTime (succ today) targetDayTime
+    waitUntil targetTime

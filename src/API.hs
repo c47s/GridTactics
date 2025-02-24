@@ -26,8 +26,10 @@ module API
     , runServer
     ) where
 
+import           Control.Concurrent (forkIO)
 import           Control.Concurrent.Async (race)
 import           Data.Aeson
+import           Data.Time.Clock
 import qualified Deque.Lazy as D
 import           Mechanics
 import           Network.Wai.Handler.Warp
@@ -107,6 +109,7 @@ data Config = Config
     { pawnTemplate :: Entity
     , actorTemplate :: Actor
     , pawnsPerClient :: Int
+    , runDailyAt :: Maybe DiffTime
     }
     deriving stock (Eq, Generic)
     deriving anyclass (FromJSON, ToJSON)
@@ -145,14 +148,12 @@ hGetDone :: (World w) => UID -> Config -> IORef w -> Handler Bool
 hGetDone aID _conf = doState $ gets $ done . lookupActor aID
 
 hPostDone :: (World w) => UID -> Config -> IORef w -> Bool -> Handler NoContent
-hPostDone aID _conf ref isDone = statefulIO ref do
+hPostDone aID conf ref isDone = statefulIO ref do
     modify $ updateActor (\a -> a {done = isDone}) aID
     nDone <- gets numDone
     nActors <- gets (length . actors)
-    when (nActors > 0 && nDone == nActors) $ do
-        modify runTurn
-        w <- get
-        liftIO $ encodeFile worldBakPath w
+    when (isJust (runDailyAt conf) && nActors > 0 && nDone == nActors) $ do
+        liftIO $ runTurnAndSave ref
     return NoContent
 
 hDone :: (World w) => UID -> Config -> IORef w -> Server DoneAPI
@@ -243,9 +244,22 @@ saveTheWorld wRef = do
     w <- readIORef wRef
     encodeFile worldBakPath w
 
+runTurnAndSave :: (World w) => IORef w -> IO ()
+runTurnAndSave wRef = do
+    modifyIORef' wRef runTurn
+    saveTheWorld wRef
+
 runServer :: (World w) => Int -> w -> Config -> IO ()
 runServer port initialWorld config = do
     wRef <- newIORef initialWorld
+
+
+    case runDailyAt config of
+        Nothing -> pass
+        Just t -> void . forkIO . void . infinitely $ do
+                waitUntilTimeOfDay t
+                runTurnAndSave wRef
+
 
     termVar <- newEmptyMVar
     let terminate = void $ tryPutMVar termVar ()
@@ -254,6 +268,7 @@ runServer port initialWorld config = do
 
     forM_ [softwareTermination, keyboardTermination, keyboardSignal] \sig ->
         installHandler sig gracefulTerm Nothing
+    
 
     void $ race waitForTermination $ withStdoutLogger $ \aplogger -> do
         let settings = setPort port $ setLogger aplogger defaultSettings
