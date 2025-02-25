@@ -17,6 +17,7 @@ module API
     , getTurnOrder
     , actorNames
     , newActor
+    , newCluster
     , getNumDone
     , multiLook
     , roundLook
@@ -28,6 +29,7 @@ module API
 
 import           Control.Concurrent (forkIO)
 import           Control.Concurrent.Async (race)
+import           Control.Monad.Extra (firstJustM)
 import           Data.Aeson
 import           Data.Time.Clock
 import qualified Deque.Lazy as D
@@ -72,6 +74,7 @@ type ActorsAPI = UIDsAPI
             :<|> OrderAPI
             :<|> NamesAPI
             :<|> NewAPI
+            :<|> ClusterAPI
             :<|> NumDoneAPI
             :<|> MultiViewAPI
             :<|> RoundViewAPI
@@ -85,6 +88,10 @@ type NamesAPI = "names" :> Get '[JSON] [Text]
 type NewAPI = "new"
     :> ReqBody '[JSON] (Text, Text) -- Pawn name, Owner name
     :> Post '[JSON] UID
+
+type ClusterAPI = "cluster"
+    :> ReqBody '[JSON] ([Text], Text) -- Pawn names, Owner name
+    :> Post '[JSON] [UID]
 
 type NumDoneAPI = "done" :> Get '[JSON] Int
 
@@ -148,17 +155,18 @@ hGetDone :: (World w) => UID -> Config -> IORef w -> Handler Bool
 hGetDone aID _conf = doState $ gets $ done . lookupActor aID
 
 hPostDone :: (World w) => UID -> Config -> IORef w -> Bool -> Handler NoContent
-hPostDone aID conf ref isDone = statefulIO ref do
-    modify $ updateActor (\a -> a {done = isDone}) aID
-    nDone <- gets numDone
-    nActors <- gets (length . actors)
-    when (isJust (runDailyAt conf) && nActors > 0 && nDone == nActors) $ do
+hPostDone aID conf ref isDone = do
+    modifyIORef' ref $ updateActor (\a -> a {done = isDone}) aID
+    w <- readIORef ref
+    let nDone = numDone w
+        nActors = length $ actors w
+    when (isNothing (runDailyAt conf) && nActors > 0 && nDone == nActors) $ do
         liftIO $ runTurnAndSave ref
-    return NoContent
+    return NoContent 
 
 hDone :: (World w) => UID -> Config -> IORef w -> Server DoneAPI
 hDone aID conf ref = hGetDone aID conf ref
-              :<|> hPostDone aID conf ref
+                :<|> hPostDone aID conf ref
 
 hUIDs :: (World w) => Config -> IORef w -> Server UIDsAPI
 hUIDs _conf = doState $ gets actors
@@ -169,13 +177,26 @@ hOrder _conf = doState $ gets turnOrder
 hNames :: (World w) => Config -> IORef w -> Server NamesAPI
 hNames _conf = doState $ gets $ \w -> aname . flip lookupActor w <$> actors w
 
-hNew :: (World w) => Config -> IORef w -> (Text, Text) -> Handler UID
+hNew :: (World w) => Config -> IORef w -> Server NewAPI
 hNew conf ref (name', owner') = do
     maybeAID <- stateToIO ref . maybeState $
-        scatterActor
+        scatterPawn
             ((pawnTemplate conf) {ename=Just name'})
             ((actorTemplate conf) {aname=name', owner=owner'})
     hoistEither' . maybeToRight err500 $ maybeAID
+
+hCluster :: (World w) => Config -> IORef w -> Server ClusterAPI
+hCluster conf ref (names, owner') = do
+    let maybeCluster = stateToIO ref . maybeState $
+            clusterPawns (ceiling (sqrt (fromIntegral $ length names :: Double)) + 2)
+                [ ( (pawnTemplate conf) {ename=Just name'}
+                , (actorTemplate conf) {aname=name', owner=owner'} )
+                | name' <- names ]
+        rollGen = modifyIORef' ref $ execState splitGen
+    
+    rollGen
+    maybeAIDs <- firstJustM (\n -> replicateM_ n rollGen >> maybeCluster) [0..10] -- Retries
+    hoistEither' . maybeToRight err500 $ maybeAIDs
 
 hNumDone :: (World w) => Config -> IORef w -> Server NumDoneAPI
 hNumDone _conf = doState $ gets numDone
@@ -200,6 +221,7 @@ hActors conf ref = hUIDs conf ref
      :<|> hOrder conf ref
      :<|> hNames conf ref
      :<|> hNew conf ref
+     :<|> hCluster conf ref
      :<|> hNumDone conf ref
      :<|> hMultiView conf ref
      :<|> hRoundView conf ref
@@ -230,13 +252,14 @@ getActorIDs :: (MonadIO m) => ReaderT ClientEnv m [UID]
 getTurnOrder :: (MonadIO m) => ReaderT ClientEnv m [UID]
 actorNames :: (MonadIO m) => ReaderT ClientEnv m [Text]
 newActor :: (MonadIO m) => (Text, Text) -> ReaderT ClientEnv m UID
+newCluster :: MonadIO m => ([Text], Text) -> ReaderT ClientEnv m [UID]
 getNumDone :: (MonadIO m) => ReaderT ClientEnv m Int
 multiLook :: (MonadIO m) => [UID] -> ReaderT ClientEnv m [[Square]]
 roundLook :: (MonadIO m) => [UID] -> ReaderT ClientEnv m (Seq Grid)
 getConfig :: (MonadIO m) => ReaderT ClientEnv m Config
 getActor :<|> quitActor :<|> look :<|> act :<|> delAct :<|> getDone :<|> setDone
-    :<|> getActorIDs :<|> getTurnOrder :<|> actorNames :<|> newActor :<|> getNumDone
-    :<|> multiLook :<|> roundLook :<|> getConfig
+    :<|> getActorIDs :<|> getTurnOrder :<|> actorNames :<|> newActor :<|> newCluster
+    :<|> getNumDone :<|> multiLook :<|> roundLook :<|> getConfig
     = hoistClient (flatten api) clientToReader $ client $ flatten api
 
 saveTheWorld :: (World w) => IORef w -> IO ()

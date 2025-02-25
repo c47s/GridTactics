@@ -39,6 +39,7 @@ import           Control.Monad.Morph
 import           Control.Zipper
 import           Data.Aeson (FromJSON, ToJSON)
 import           Data.Composition
+import           Data.List.HT (sieve)
 import           Data.Map.Merge.Strict
 import qualified Data.Map.Strict as Map
 import           Data.Sequence (Seq(..), lookup)
@@ -46,10 +47,12 @@ import qualified Data.Set as Set
 import           Data.Tuple.Extra (both)
 import qualified Deque.Lazy as D
 import           Deque.Lazy (Deque)
+import           GHC.Utils.Misc (nTimes)
 import           Prelude (maximum, minimum, until)
 import           Relude
 import           Relude.Unsafe ((!!))
 import           System.Random
+import           System.Random.Shuffle
 import           Util
 
 
@@ -192,6 +195,12 @@ step SW = stepTwice S W
 
 stepTwice :: Direction -> Direction -> Coords -> Coords
 stepTwice = (.) `on` step
+
+ringAround :: (Enum a, Num a) => (a, a) -> a -> [(a, a)]
+ringAround (cx, cy) r = [(x, cy - r) | x <- [cx-r .. cx+r-1]]
+                     ++ [(cx + r, y) | y <- [cy-r .. cy+r-1]]
+                     ++ [(x, cy + r) | x <- [cx+r,cx+r-1 .. cx-r+1]]
+                     ++ [(cx - r, y) | y <- [cy+r,cx+r-1 .. cy-r+1]]
 
 
 {- {- {- ACTION -} -} -}
@@ -395,36 +404,48 @@ class (FromJSON w, ToJSON w) => World w where
     in
       getIfVisible <<$>> ([[(x, y) | x <- [minX .. maxX]] | y <- [minY .. maxY]])
 
-
-  -- Place an Entity in a random empty Square. Fails if all Squares are full.
-  scatter :: Entity -> StateT w Maybe Coords
-  scatter e = do
+  getEmptySpace :: StateT w Maybe Coords
+  getEmptySpace = do
     spaces <- gets empties
     lift . guard . not . null $ spaces
     gen <- hoist generalize splitGen
-    let c = spaces !! fst (randomR (0, length spaces - 1) gen)
-    modify $ putSquare (Just e) c
-    return c
+    return $ spaces !! fst (randomR (0, length spaces - 1) gen)
+
+  -- Place an Entity in a random empty Square. Fails if all Squares are full.
+  scatter :: Entity -> w -> Maybe w
+  scatter e = execStateT $ getEmptySpace >>= (modify . putSquare (Just e))
 
   fill :: Entity -> w -> w
-  fill e = farthest (execStateT $ scatter e)
+  fill e = farthest $ scatter e
 
   fillFraction :: (RealFrac n) => n -> Entity -> w -> w
-  fillFraction portionToFill e w = tugs (execStateT $ scatter e)
+  fillFraction portionToFill e w = tugs (scatter e)
     (floor $ (fromIntegral . length $ empties w) * portionToFill) w
-
-  scatterActor :: Entity -> Actor -> StateT w Maybe UID
-  scatterActor e a = do
-      c <- scatter e
-      register $ a {coords = c}
   
-  scatterActors :: [Text] -> Entity -> Actor -> w -> Maybe w
-  scatterActors names e a w = foldl' (>>=) (Just w)
-    [ execStateT $ scatterActor
-      (e {ename = Just thisName})
-      (a {aname = thisName})
-    | thisName <- names
-    ]
+  putPawn :: Entity -> Actor -> Coords -> StateT w Maybe UID
+  putPawn e a c = do
+    modify $ putSquare (Just e) c
+    register $ a {coords = c}
+
+  scatterPawn :: Entity -> Actor -> StateT w Maybe UID
+  scatterPawn e a = getEmptySpace >>= putPawn e a
+
+  clusterPawns :: Int -> [(Entity, Actor)] -> StateT w Maybe [UID]
+  clusterPawns maxRadius pawns = do
+    center <- getEmptySpace
+
+    w0 <- get
+    let radii = [2,4..maxRadius]
+        positionRings = sieve 2 . ringAround center <$> radii
+        spaceRings = filter ((== Nothing) . flip getSquare w0) <$> positionRings
+        clusters = scanl (++) [] spaceRings
+    spaces <- lift $ find ((> length pawns) . length) clusters
+
+    gen <- hoist generalize splitGen
+    forM
+      ( zip pawns $
+        shuffle' spaces (length spaces) gen )
+      (uncurry $ uncurry putPawn)
 
   -- Search in a line from the Coords in the given direction until we find what we're looking for or we reach the given max range.
   -- The predicate takes the tuple (this Square, the next Square). This allows stopping before OR upon the desired Square.
@@ -437,7 +458,10 @@ class (FromJSON w, ToJSON w) => World w where
   
   -- Start the search 1 square out. (To avoid hitting yourself!)
   project1 :: Coords -> Direction -> Int -> ((Square, Square) -> Bool) -> w -> Coords
-  project1 c d r p w = project (step d c) d (r - 1) p w
+  project1 = projectN 1
+
+  projectN :: Int -> Coords -> Direction -> Int -> ((Square, Square) -> Bool) -> w -> Coords
+  projectN n c d r p w = project (nTimes n (step d) c) d (r - 1) p w
 
   -- Merge the given Entity's contents with the Square at the given Coords.
   putSquare :: Square -> Coords -> w -> w
@@ -523,7 +547,7 @@ class (FromJSON w, ToJSON w) => World w where
           in return $ putLoot (singloot Hearts 1) target $ hit target w
         Blast -> flip execStateT w do
           let target = project1 c d (range act) (hittable . fst) w
-          let splash = fmap (`step` target) universe
+          let splash = ringAround target 1
           modify $ foldr (.) id (fmap hit $ target:splash)
           modify $ putLoot (singloot Hearts 2) target
         Throw l -> do
@@ -590,9 +614,8 @@ class (FromJSON w, ToJSON w) => World w where
     modify . giveAllLoot $ singloot Actions 1
     everyone <- gets actors
     modify $ foldr (.) id $
-      ( \aID w -> updateActor (\a -> if actorAlive w a
-            then a {done = False}
-            else a)
+      ( \aID w -> updateActor
+          (\a -> a {done = not $ actorAlive w a})
           aID w
       )
       <$> everyone

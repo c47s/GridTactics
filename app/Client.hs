@@ -324,9 +324,9 @@ main = runInputT defaultSettings do
             let baseName1 = randElem g1 frenchNames
             let baseName2 = randElem g2 frenchNames
             
-            forM [1..(pawnsPerClient config)] $ \n -> do
+            names <- forM [1..(pawnsPerClient config)] $ \n -> do
                 outputStrLn ""
-                newName <- untilJustAnd nonBlank do
+                untilJustAnd nonBlank do
                     g3 <- newStdGen
                     g4 <- newStdGen
                     g5 <- newStdGen
@@ -335,8 +335,8 @@ main = runInputT defaultSettings do
                             
                     outputStrLn ("Enter pawn " <> show n <> " name:")
                     getInputLineWithInitial "> " (toString suggestedName,"")
-                
-                usingReaderT env $ newActor (fromString newName, fromString username)
+            
+            usingReaderT env $ newCluster (fromString <$> names, fromString username)
 
 
     let initialState = AppState
