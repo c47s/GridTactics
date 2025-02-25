@@ -14,6 +14,7 @@ import           Graphics.Vty as V hiding (Default)
 import           Graphics.Vty.CrossPlatform
 import           GridTactics hiding (World(..))
 import           Network.HTTP.Client
+import           Options.Applicative
 import           Relude
 import           Relude.Extra.Enum (next, prev)
 import           Servant.Client
@@ -228,6 +229,44 @@ defaultKeybinds = Bap.fromList
     , (KBS, Also DelAction)
     ]
 
+
+
+data ClientOpts = ClientOpts
+    { _hostName :: Maybe String
+    , _port :: Maybe Int
+    , _username :: Maybe String
+    }
+
+optParser :: Parser ClientOpts
+optParser = ClientOpts
+    <$> optional (strOption
+        ( long "server"
+       <> short 's'
+       <> help "Hostname of the server - domain name or IP address"
+       <> metavar "<hostname>"
+        ))
+    <*> optional (option auto
+        ( long "port"
+       <> short 'p'
+       <> help "Port on which to contact the server"
+       <> metavar "<port>"
+        ))
+    <*> optional (strOption
+        ( long "username"
+       <> short 'u'
+       <> help "Identity used to track whose pawns are whose"
+       <> metavar "<name>"
+       <> showDefault
+        ))
+
+optParserInfo :: ParserInfo ClientOpts
+optParserInfo = info (optParser <**> helper)
+      ( fullDesc
+     <> progDesc ("Connect to a " ++ productName ++ " game.\n\
+                  \Options not supplied on the command line will be requested interactively.")
+     <> header ("The " ++ productName ++ " Client") ) --" ++ productName ++ "
+
+
 frenchNames :: [Text]
 frenchNames =
     [ "Aimée", "Chloé", "Fleur", "Jewel", "Jolie", "Lucie", "Manon"
@@ -238,18 +277,22 @@ frenchNames =
 
 main :: IO ()
 main = runInputT defaultSettings do
+    opts <- liftIO $ execParser optParserInfo
+
     outputStrLn "Hello!"
     outputStrLn $ "Welcome to the " ++ productName ++ " client."
 
-    outputStrLn ""
-    hostName <- untilJust do
-        outputStrLn "Enter hostname (IP or domain name):"
-        getInputLineWithInitial "> " ("localhost","")
+    hostName <- whenNothing (_hostName opts) do
+        outputStrLn ""
+        untilJust do
+            outputStrLn "Enter hostname (IP or domain name):"
+            getInputLineWithInitial "> " ("localhost","")
 
-    outputStrLn ""
-    port <- untilValid do
-        outputStrLn "Enter port:"
-        getInputLineWithInitial "> " ("42069","")
+    port <- whenNothing (_port opts) do
+        outputStrLn ""
+        untilValid do
+            outputStrLn "Enter port:"
+            getInputLineWithInitial "> " ("42069","")
     
     manager <- liftIO $ newManager defaultManagerSettings
 
@@ -262,10 +305,11 @@ main = runInputT defaultSettings do
     config <- usingReaderT env getConfig
 
 
-    outputStrLn ""
-    username <- untilJust do
-        outputStrLn "Enter username:"
-        getInputLineWithInitial "> " ("","")
+    username <- whenNothing (_username opts) do
+        outputStrLn ""
+        untilJust do
+            outputStrLn "Enter username:"
+            getInputLineWithInitial "> " ("","")
 
     aIDs <- usingReaderT env getActorIDs
     actors <- sequence $ usingReaderT env . getActor <$> aIDs

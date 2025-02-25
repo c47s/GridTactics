@@ -8,5 +8,5 @@ import TUI as GridTactics
 
 import Relude
 
-productName :: IsString a => a
+productName :: String
 productName = "GridTactics"

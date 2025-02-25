@@ -35,6 +35,7 @@ common common-options
                      , http-client
                      , mmorph
                      , mtl
+                     , optparse-applicative
                      , random
                      , random-shuffle
                      , relude
