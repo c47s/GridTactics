@@ -173,16 +173,16 @@ doUIAction (Also uiA) s = doUIAction uiA s
 handleEvent :: AppState -> BrickEvent Name GTEvent -> EventM Name AppState ()
 handleEvent s (VtyEvent (EvKey key _modifiers)) = maybe put doUIAction (Bap.lookup key (keybinds s)) s
 handleEvent s (MouseDown (Btn uiAct) _ _ _) = doUIAction uiAct s
-handleEvent s (AppEvent (Tick n)) = do
-    let s' = if viewingReplay s && n >= replayTick s
-        then if replayIndex s + 1 == length (currReplay s)
-            then s {viewingReplay = False, replayIndex = 0}
-            else s
-                { replayIndex = replayIndex s + 1
-                , replayTick = n + round (30 * 0.99 ^ (replayIndex s + 1) :: Double)
-                }
-        else s
-    s' & if not (longGame s) && n `mod` 500 == 0 then continue' else put
+handleEvent s (AppEvent (Tick n))
+    | viewingReplay s && n >= replayTick s
+    = if replayIndex s + 1 == length (currReplay s)
+        then put s {viewingReplay = False, replayIndex = 0}
+        else put s
+            { replayIndex = replayIndex s + 1
+            , replayTick = n + round (30 * 0.99 ^ (replayIndex s + 1) :: Double)
+            }
+    | not (longGame s) && n `mod` 500 == 0 = continue' s
+    | otherwise = continueWithoutRedraw
 handleEvent s _otherEvent = put s
 
 
