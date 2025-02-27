@@ -55,8 +55,9 @@ buildWorld = do
 
     let w = fillFraction (fillPortion / 100 :: Double) scatterE
             $ mkWorld gen wSize
-    
     return w
+
+
 
 data YesNo = Y | N
     deriving stock (Eq, Read)
@@ -77,10 +78,13 @@ main = runInputT defaultSettings do
         upper <<$>> getInputLineWithInitial "> " ("n","")
     
     bakExists <- liftIO $ doesFileExist ".gridtac_bak.json"
+    when (loadBak == Y) $
+        outputStrLn if bakExists then "Found autosave." else "No autosave found."
 
     bakW <- if loadBak /= Y || not bakExists
         then return Nothing
         else liftIO $ decodeFileStrict ".gridtac_bak.json"
+    when (isJust bakW) $ outputStrLn "Loaded autosave."
 
     newW <- buildWorld
 
@@ -139,7 +143,7 @@ main = runInputT defaultSettings do
                 outputStrLn "Enter time of day to evaluate round:"
                 line <- getInputLineWithInitial "> " ("5:00", "")
 
-                let parseTime = parseTimeM True defaultTimeLocale "%-R"
+                let parseTime = parseTimeM True defaultTimeLocale "%-H:%0M"
                 tz <- liftIO getCurrentTimeZone
                 return $ timeOfDayToTime . snd . localToUTCTimeOfDay tz <$>
                          (parseTime =<< line)

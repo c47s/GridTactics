@@ -10,6 +10,9 @@ import qualified Data.Bimap as Bap
 import           Data.List.Extra
 import qualified Data.Sequence as Seq
 import qualified Data.Text as T
+import           Data.Time.Clock
+import           Data.Time.Format
+import           Data.Time.LocalTime
 import           Graphics.Vty as V hiding (Default)
 import           Graphics.Vty.CrossPlatform
 import           GridTactics hiding (World(..))
@@ -303,6 +306,12 @@ main = runInputT defaultSettings do
     outputStrLn ""
     outputStrLn "Contacting server..."
     config <- usingReaderT env getConfig
+    tz <- liftIO getCurrentTimeZone
+    now <- liftIO getCurrentTime
+    whenJust (runDailyAt config) \t ->
+        outputStrLn $ "This game evaluates once a day at " ++
+            formatTime defaultTimeLocale "%-H:%0M"
+            (utcToLocalTime tz (now {utctDayTime=t}))
 
 
     username <- whenNothing (_username opts) do
