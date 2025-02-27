@@ -182,7 +182,7 @@ handleEvent s (AppEvent (Tick n)) = do
                 , replayTick = n + round (30 * 0.99 ^ (replayIndex s + 1) :: Double)
                 }
         else s
-    s' & if currDone s || n `mod` 500 == 0 then continue' else put
+    s' & if not (longGame s) && n `mod` 500 == 0 then continue' else put
 handleEvent s _otherEvent = put s
 
 
@@ -316,7 +316,7 @@ main = runInputT defaultSettings do
 
     username <- whenNothing (_username opts) do
         outputStrLn ""
-        untilJust do
+        untilJustAnd nonBlank do
             outputStrLn "Enter username:"
             getInputLineWithInitial "> " ("","")
 
@@ -368,6 +368,7 @@ main = runInputT defaultSettings do
             , currNumDone = error "currNumDone not yet initialized"
             , currNames = error "currNames not yet initialized"
             , currOrder = error "currOrder not yet initialized"
+            , longGame = isJust $ runDailyAt config
             }
 
 

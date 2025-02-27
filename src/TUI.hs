@@ -57,6 +57,7 @@ data AppState = AppState
     , currNumDone :: Int
     , currNames :: [Text]
     , currOrder :: [UID]
+    , longGame :: Bool -- One round a day?
     }
 
 currActorID :: AppState -> UID
