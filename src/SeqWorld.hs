@@ -16,7 +16,6 @@ import           Mechanics
 import           Relude
 import           Relude.Unsafe (fromJust)
 import           System.Random
-import           System.Random.Shuffle
 import           Util
 import           WebInstances ()
 
@@ -36,7 +35,7 @@ width :: SeqWorld -> Int
 width w = 2 * radius w + 1
 
 absoluteCoords :: SeqWorld -> Bool
-absoluteCoords w = width w <= 11
+absoluteCoords _w = False -- width w <= 11
 
 wrap :: Int -> Coords -> Coords
 wrap n = both (`mod` n)
@@ -97,7 +96,7 @@ instance World SeqWorld where
   shuffleTurnOrder = execState do
     gen <- splitGen
     everyone <- gets actors
-    modify \w -> w {turnOrder' = shuffle' everyone (length everyone) gen}
+    modify \w -> w {turnOrder' = safeShuf' everyone (length everyone) gen}
 
   wrapAround (cx, cy) w (x, y) = bimap (+ offset cx) (+ offset cy) $
     _wrapCoords w (x - offset cx, y - offset cy)

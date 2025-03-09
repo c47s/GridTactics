@@ -17,6 +17,7 @@ import           Relude hiding ((?:))
 import           Servant
 import           System.Console.Haskeline
 import           System.Random
+import           System.Random.Shuffle
 
 
 
@@ -172,6 +173,15 @@ mixText gen = fromString .
 randElem :: (RandomGen g) => g -> [a] -> a
 randElem gen xs = xs !! fst (uniformR (0, length xs - 1) gen)
 
+randBEnum :: (Enum a, Bounded a, RandomGen g) => g -> a
+randBEnum gen = randElem gen universe
+
+randBEnums :: (Enum a, Bounded a, RandomGen g) => g -> [a]
+randBEnums = fmap randBEnum . unfoldr (Just . split)
+
+safeShuf' :: RandomGen gen => [a] -> Int -> gen -> [a]
+safeShuf' [] _ _ = []
+safeShuf' xs l gen = shuffle' xs l gen
 
 
 -- Text

@@ -39,7 +39,8 @@ import           Control.Monad.Morph
 import           Control.Zipper
 import           Data.Aeson (FromJSON, ToJSON)
 import           Data.Composition
-import           Data.List.HT (sieve)
+import           Data.List (elemIndex)
+import           Data.List.HT (sieve, takeUntil)
 import           Data.Map.Merge.Strict
 import qualified Data.Map.Strict as Map
 import           Data.Sequence (Seq(..), lookup)
@@ -50,9 +51,8 @@ import           Deque.Lazy (Deque)
 import           GHC.Utils.Misc (nTimes)
 import           Prelude (maximum, minimum, until)
 import           Relude
-import           Relude.Unsafe ((!!))
+import           Relude.Unsafe (fromJust, (!!))
 import           System.Random
-import           System.Random.Shuffle
 import           Util
 
 
@@ -341,6 +341,14 @@ class (FromJSON w, ToJSON w) => World w where
   actor :: w -> Entity -> Maybe Actor
   actor w e = flip lookupActor w <$> actorID e
 
+  initiative :: UID -> w -> Int
+  initiative aID w = fromJust $ elemIndex aID (turnOrder w)
+
+  updateEveryone :: (Actor -> Actor) -> w -> w
+  updateEveryone f = execState do
+    everyone <- gets actors
+    modify $ foldr (.) id $ updateActor f <$> everyone
+
   numDone :: w -> Int
   numDone = sum . map fromEnum
     . \w -> done . flip lookupActor w <$> actors w
@@ -444,7 +452,7 @@ class (FromJSON w, ToJSON w) => World w where
     gen <- hoist generalize splitGen
     forM
       ( zip pawns $
-        shuffle' spaces (length spaces) gen )
+        safeShuf' spaces (length spaces) gen )
       (uncurry $ uncurry putPawn)
 
   -- Search in a line from the Coords in the given direction until we find what we're looking for or we reach the given max range.
@@ -589,6 +597,117 @@ class (FromJSON w, ToJSON w) => World w where
           >>= (\w' -> spendFor actn (findMeIn w') w')
           >>= Just . takeSnapshot
 
+  autoplan :: UID -> w -> w
+  autoplan aID = execState $ do
+    gen1 <- splitGen
+    gen2 <- splitGen
+    gen3 <- splitGen
+    gen4 <- splitGen
+    gen5 <- splitGen
+    gen6 <- splitGen
+    w <- get
+    modify $ flip updateActor aID \a ->
+      let myPos = findActor aID w
+          myE   = fromJust $ getSquare myPos w 
+
+          scoreSquare direct t c = fromMaybe 0 do
+            e <- getSquare c w
+            aID' <- actorID e
+            let a' = lookupActor aID' w
+                -- t  = position in action queue
+                -- t' = how many actions opponent has taken before now
+                t' = t + if initiative aID' w < initiative aID w then 1 else 0
+                aim   | direct     && t' == 0 = 1
+                      | not direct && t' == 0 = 0
+                      | otherwise = 1/(5 + 2*t')
+                enemy | owner a' /= owner a = 1
+                      | otherwise           = -0.7
+                weak  | health e <= 0 = 0
+                      | health e == 1 = 1
+                      | otherwise     = 0.7
+            return $ aim * enemy * weak
+
+          -- t denotes move number, starting at 0
+          scoreTarget t c = (1/(t+1)) * scoreSquare True t c
+                          + (1 - (1/(t+2))) * sum (scoreSquare False t <$> ringAround c 1)
+          
+          scoreLine start d r t = sum
+            $ fmap (scoreTarget t)
+            $ takeUntil ( \c -> let
+              s = getSquare c w
+              wall = maybe False (\e -> health e > 0 && isNothing (actorID e)) s
+              pawn = maybe False (\e -> health e > 0
+                                     && maybe maxBound (flip initiative w) (actorID e)
+                                        < initiative aID w) s
+              in wall || (pawn && not (t > 0)) -- Something we'll definitely hit
+              )
+            $ take r $ drop 1 $ iterate (step d) start
+
+          nudgeScores gen = zipWith (\g -> second (* (fst $ uniformR (0.999, 1) g)))
+                                    (unfoldr (Just . split) gen)
+          
+          shot t g = take 1
+                   $ fmap (Dir Shoot . fst)
+                   $ sortOn (negate . snd)
+                   $ nudgeScores g
+                   $ filter ((> 0.01) . snd)
+                   $ [ (d, scoreLine myPos d (range a) t :: Double)
+                     | d <- universe
+                     ]
+          
+          potentialShots = shot 0 gen1 ++ shot 1 gen2
+          shots = take (fst $ uniformR (1,2) gen3) $ potentialShots
+
+          contAfterShoot = maybeToMonoid $ contents myE `without` (fold $ cost <$> shots)
+
+          adj d = getSquare (step d myPos) w
+
+          eatWalls =  [ ( replicate (health e) (Dir Shoot d) ++ [Dir Move d]
+                        , (fromIntegral $ health e) :: Double
+                        )
+                      | d <- universe
+                      , let e = fromJust $ adj d
+                      , any (isNothing . actorID) (adj d)
+                        && any ((contAfterShoot `contains`)
+                                . (flip mtimesDefault $ cost (Dir Shoot d))
+                                . health) (adj d)
+                      ]
+          eatWall = if (contAfterShoot `contains` (stimes (3::Int) $ cost $ Dir Shoot N)
+                       && not (contAfterShoot `contains` (singloot Hearts 8))
+                       ) ||
+                       (not (contAfterShoot `contains` (stimes (3::Int) $ cost $ Dir Shoot N)))
+                    then join $ take 1 $ (fmap fst) $ sortOn snd $ nudgeScores gen4 eatWalls
+                    else []
+                  
+
+          steps = [ d
+                  | d <- universe
+                  , passable $ adj d
+                  ]
+          specialMove = if (not . null) eatWall then eatWall
+                      else take 1 $ Dir Move <$> safeShuf' steps (length steps) gen5
+
+          initialPlan = shots ++ specialMove
+          intitalCost = fold $ cost <$> initialPlan
+
+          eatScrap = if (maybeToMonoid $ contents myE `without` intitalCost)
+                        `contains` (cost (Undir Recycle)
+                                  <> cost (Undir RepairMe)
+                                  <> singloot Hearts 2)
+                     then [Undir Recycle]
+                     else []
+          
+          repairMe = if (maybeToMonoid $
+                        contents myE `without` (intitalCost <> fold (cost <$> eatScrap)))
+                        `contains` (cost (Undir RepairMe) <> singloot Hearts 2)
+                     then [Undir RepairMe]
+                     else []
+
+          randMoves = take 2 $ Dir Move <$> randBEnums gen6
+
+          plan = initialPlan ++ eatScrap ++ repairMe ++ randMoves
+      in a {queue = fromList . reverse $ plan}
+
   giveAllLoot :: Loot -> w -> w
   giveAllLoot l w = foldl' (&) w
     . fmap (
@@ -612,11 +731,12 @@ class (FromJSON w, ToJSON w) => World w where
     modify takeSnapshot
     modify $ until queuesEmpty runRound
     modify . giveAllLoot $ singloot Actions 1
-    everyone <- gets actors
-    modify $ foldr (.) id $
-      ( \aID w -> updateActor
-          (\a -> a {done = not $ actorAlive w a})
-          aID w
-      )
-      <$> everyone
+    modify \w -> updateEveryone (\a -> a {done = not $ actorAlive w a}) w
     modify shuffleTurnOrder
+    bots <- gets \w -> filter ((== "_") . take 1 . toString . aname . flip lookupActor w)
+                              $ actors w
+    modify $ foldr (.) id $ autoplan <$> bots
+    numPawns <- gets (length . actors)
+    when (length bots < numPawns) do
+      modify $ foldr (.) id $ updateActor (\a -> a {done = True}) <$> bots
+    

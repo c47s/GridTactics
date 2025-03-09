@@ -35,7 +35,7 @@ buildWorld = do
     scatterHearts <- untilValid do
         outputStrLn "Enter scatter scrap:"
         outputStrLn "(Extra scrap placed inside scatters)"
-        getInputLineWithInitial "> " ("2","")
+        getInputLineWithInitial "> " ("1","")
 
     outputStrLn ""
     scatterActions <- untilValid do

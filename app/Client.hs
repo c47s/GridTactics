@@ -8,7 +8,7 @@ import           Brick.Main
 import           Control.Concurrent (forkIO, threadDelay)
 import qualified Data.Bimap as Bap
 import           Data.List.Extra
--- import qualified Data.Sequence as Seq
+import qualified Data.Sequence as Seq
 import qualified Data.Text as T
 import           Data.Time.Clock
 import           Data.Time.Format
@@ -160,16 +160,16 @@ doUIAction (SwitchTo aID) s = continue' $ s {actorIDs = rotateTo aID $ actorIDs 
 doUIAction ToggleDone s = toggleDone (currActorID s) s
 doUIAction SubmAction s = inApp s (act (currActorID s) (currAction s)) >> continue' s
 doUIAction DelAction s = inApp s (delAct $ currActorID s) >> continue' s
-doUIAction ClaimAllPawns _s = continueWithoutRedraw
-    -- do
-    -- allActors <- inApp s getActorIDs
-    -- continue' $ s {actorIDs = fromList allActors}
-doUIAction RemovePawn _s = continueWithoutRedraw
-    -- do
-    -- _ <- inApp s . quitActor $ currActorID s
-    -- continue' $ s {actorIDs = Seq.filter (/= currActorID s) $ actorIDs s}
-doUIAction DisownPawn _s = continueWithoutRedraw
-    -- continue' $ s {actorIDs = Seq.filter (/= currActorID s) $ actorIDs s}
+doUIAction ClaimAllPawns _s = -- continueWithoutRedraw
+    do
+        allActors <- inApp _s getActorIDs
+        continue' $ _s {actorIDs = fromList allActors}
+doUIAction RemovePawn _s = -- continueWithoutRedraw
+    do
+        _ <- inApp _s . quitActor $ currActorID _s
+        continue' $ _s {actorIDs = Seq.filter (/= currActorID _s) $ actorIDs _s}
+doUIAction DisownPawn _s = -- continueWithoutRedraw
+    continue' $ _s {actorIDs = Seq.filter (/= currActorID _s) $ actorIDs _s}
 doUIAction Quit s = quit s
 doUIAction (Also uiA) s = doUIAction uiA s
 
