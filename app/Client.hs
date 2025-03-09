@@ -342,8 +342,9 @@ main = runInputT defaultSettings do
                     g3 <- newStdGen
                     g4 <- newStdGen
                     g5 <- newStdGen
-                    let suggestedName = T.takeWhile (/= ' ') $ mixText g3 baseName1 $
-                            mixText g4 baseName2 (randElem g5 frenchNames)
+                    let suggestedName = (if take 1 username == "_" then "_" else "")
+                            <> T.takeWhile (/= ' ') (mixText g3 baseName1
+                            $ mixText g4 baseName2 (randElem g5 frenchNames))
                             
                     outputStrLn ("Enter pawn " <> show n <> " name:")
                     getInputLineWithInitial "> " (toString suggestedName,"")

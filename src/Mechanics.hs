@@ -605,6 +605,8 @@ class (FromJSON w, ToJSON w) => World w where
     gen4 <- splitGen
     gen5 <- splitGen
     gen6 <- splitGen
+    gen7 <- splitGen
+    gen8 <- splitGen
     w <- get
     modify $ flip updateActor aID \a ->
       let myPos = findActor aID w
@@ -628,8 +630,8 @@ class (FromJSON w, ToJSON w) => World w where
             return $ aim * enemy * weak
 
           -- t denotes move number, starting at 0
-          scoreTarget t c = (1/(t+1)) * scoreSquare True t c
-                          + (1 - (1/(t+2))) * sum (scoreSquare False t <$> ringAround c 1)
+          scoreTarget t c = scoreSquare True t c
+                          + sum (scoreSquare False t <$> ringAround c 1)
           
           scoreLine start d r t = sum
             $ fmap (scoreTarget t)
@@ -637,30 +639,47 @@ class (FromJSON w, ToJSON w) => World w where
               s = getSquare c w
               wall = maybe False (\e -> health e > 0 && isNothing (actorID e)) s
               pawn = maybe False (\e -> health e > 0
-                                     && maybe maxBound (flip initiative w) (actorID e)
+                                     && maybe maxBound (`initiative` w) (actorID e)
                                         < initiative aID w) s
               in wall || (pawn && not (t > 0)) -- Something we'll definitely hit
               )
             $ take r $ drop 1 $ iterate (step d) start
 
-          nudgeScores gen = zipWith (\g -> second (* (fst $ uniformR (0.999, 1) g)))
+          nudgeScores gen amt = zipWith (\g -> second (* (fst $ uniformR (1-amt, 1) g)))
                                     (unfoldr (Just . split) gen)
           
           shot t g = take 1
                    $ fmap (Dir Shoot . fst)
                    $ sortOn (negate . snd)
-                   $ nudgeScores g
-                   $ filter ((> 0.01) . snd)
+                   $ nudgeScores g 0.3
+                   $ filter ((> 0.2) . snd) -- Don't shoot at a tiny whiff of opponent
                    $ [ (d, scoreLine myPos d (range a) t :: Double)
                      | d <- universe
                      ]
           
           potentialShots = shot 0 gen1 ++ shot 1 gen2
-          shots = take (fst $ uniformR (1,2) gen3) $ potentialShots
-
-          contAfterShoot = maybeToMonoid $ contents myE `without` (fold $ cost <$> shots)
-
+          shots = join $ take 1 $ drop 1 -- Drop the empty prefix
+            $ filter (\s -> maybeToMonoid (contents myE `without` fold (cost <$> s))
+                `contains` singloot Hearts 2) -- Assumes walls have 2HP, shoot costs 1S
+            $ inits $ take (fst $ uniformR (1,2) gen3) potentialShots
+          
           adj d = getSquare (step d myPos) w
+
+          contAfterShoot = maybeToMonoid $ contents myE `without` fold (cost <$> shots)
+
+          grabs = take (fst $ uniformR (0,2) gen7) -- 2/3 chance to grab when we can
+                $ take 1 $ fmap fst
+                $ sortOn (negate . snd)
+                $ nudgeScores gen8 (0.01 :: Double)
+                $ [ (Dir Grab d, fromIntegral $ res Actions l + res Hearts l)
+                  | d <- universe
+                  , let l = maybeToMonoid do
+                          e <- adj d
+                          guard $ health e <= 0
+                          guard $ isJust $ actorID e
+                          return $ contents e
+                  , l /= mempty
+                  ]
 
           eatWalls =  [ ( replicate (health e) (Dir Shoot d) ++ [Dir Move d]
                         , (fromIntegral $ health e) :: Double
@@ -669,39 +688,39 @@ class (FromJSON w, ToJSON w) => World w where
                       , let e = fromJust $ adj d
                       , any (isNothing . actorID) (adj d)
                         && any ((contAfterShoot `contains`)
-                                . (flip mtimesDefault $ cost (Dir Shoot d))
+                                . flip mtimesDefault (cost (Dir Shoot d))
                                 . health) (adj d)
                       ]
-          eatWall = if (contAfterShoot `contains` (stimes (3::Int) $ cost $ Dir Shoot N)
-                       && not (contAfterShoot `contains` (singloot Hearts 8))
+          eatWall = if (contAfterShoot `contains` stimes (3::Int) (cost $ Dir Shoot N)
+                       && not (contAfterShoot `contains` singloot Hearts 8)
                        ) ||
-                       (not (contAfterShoot `contains` (stimes (3::Int) $ cost $ Dir Shoot N)))
-                    then join $ take 1 $ (fmap fst) $ sortOn snd $ nudgeScores gen4 eatWalls
+                       not (contAfterShoot `contains` singloot Hearts 3) -- Assumes shoot costs 1S
+                    then join $ take 1 $ fmap fst $ sortOn snd $ nudgeScores gen4 0.001 eatWalls
                     else []
                   
-
           steps = [ d
                   | d <- universe
                   , passable $ adj d
                   ]
-          specialMove = if (not . null) eatWall then eatWall
-                      else take 1 $ Dir Move <$> safeShuf' steps (length steps) gen5
-
+          specialMove | (not . null) grabs || null eatWall =
+                          grabs ++ take 1 (Dir Move <$> safeShuf' steps (length steps) gen5)
+                      | otherwise = eatWall
+          
           initialPlan = shots ++ specialMove
           intitalCost = fold $ cost <$> initialPlan
 
-          eatScrap = if (maybeToMonoid $ contents myE `without` intitalCost)
-                        `contains` (cost (Undir Recycle)
+          eatScrap = [ Undir Recycle
+                     | maybeToMonoid (contents myE `without` intitalCost)
+                        `contains` ( cost (Undir Recycle)
                                   <> cost (Undir RepairMe)
-                                  <> singloot Hearts 2)
-                     then [Undir Recycle]
-                     else []
+                                  <> singloot Hearts 2 )
+                     ]
           
-          repairMe = if (maybeToMonoid $
-                        contents myE `without` (intitalCost <> fold (cost <$> eatScrap)))
+          repairMe = [ Undir RepairMe
+                     | maybeToMonoid ( contents myE
+                          `without` (intitalCost <> fold (cost <$> eatScrap)) )
                         `contains` (cost (Undir RepairMe) <> singloot Hearts 2)
-                     then [Undir RepairMe]
-                     else []
+                     ]
 
           randMoves = take 2 $ Dir Move <$> randBEnums gen6
 
