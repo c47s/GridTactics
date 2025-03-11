@@ -196,11 +196,12 @@ step SW = stepTwice S W
 stepTwice :: Direction -> Direction -> Coords -> Coords
 stepTwice = (.) `on` step
 
-ringAround :: (Enum a, Num a) => (a, a) -> a -> [(a, a)]
+ringAround :: Coords -> Int -> [Coords]
+ringAround (cx, cy) 0 = [(cx, cy)]
 ringAround (cx, cy) r = [(x, cy - r) | x <- [cx-r .. cx+r-1]]
                      ++ [(cx + r, y) | y <- [cy-r .. cy+r-1]]
                      ++ [(x, cy + r) | x <- [cx+r,cx+r-1 .. cx-r+1]]
-                     ++ [(cx - r, y) | y <- [cy+r,cx+r-1 .. cy-r+1]]
+                     ++ [(cx - r, y) | y <- [cy+r,cy+r-1 .. cy-r+1]]
 
 
 {- {- {- ACTION -} -} -}
