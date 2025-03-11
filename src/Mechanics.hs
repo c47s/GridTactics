@@ -121,7 +121,10 @@ newtype Loot = Loot {unLoot :: Map Resource Int}
 
 {- HLINT ignore "Use one" -} -- Spurious hint.
 singloot :: Resource -> Int -> Loot
-singloot = Loot .: Map.singleton 
+singloot = Loot .: Map.singleton
+
+lonly :: Resource -> Loot -> Loot
+lonly r l = singloot r $ res r l
 
 contains :: Loot -> Loot -> Bool
 contains = isJust .: without
@@ -634,8 +637,10 @@ class (FromJSON w, ToJSON w) => World w where
           scoreTarget t c = scoreSquare True t c
                           + sum (scoreSquare False t <$> ringAround c 1)
           
-          scoreLine start d r t = sum
-            $ fmap (scoreTarget t)
+          scoreTargets radius t c = sum $ scoreTarget t <$> (ringAround c =<< [0..radius])
+          
+          scoreLine start d range radius t = sum
+            $ fmap (scoreTargets radius t)
             $ takeUntil ( \c -> let
               s = getSquare c w
               wall = maybe False (\e -> health e > 0 && isNothing (actorID e)) s
@@ -644,29 +649,43 @@ class (FromJSON w, ToJSON w) => World w where
                                         < initiative aID w) s
               in wall || (pawn && not (t > 0)) -- Something we'll definitely hit
               )
-            $ take r $ drop 1 $ iterate (step d) start
+            $ take range $ drop 1 $ iterate (step d) start
 
           nudgeScores gen amt = zipWith (\g -> second (* (fst $ uniformR (1-amt, 1) g)))
                                     (unfoldr (Just . split) gen)
+
+          shootScrap = (lonly Hearts $ cost $ Dir Shoot N)
+          scrapToEatWall = stimes (2::Int) shootScrap -- Assumes walls have 2HP
           
-          shot t g = take 1
-                   $ fmap (Dir Shoot . fst)
+          shots t = [ ( Dir Shoot d
+                      , scoreLine myPos d (range a) 0 t :: Double
+                      )
+                    | d <- universe
+                    ]
+          
+          blasts t = [ ( Dir Blast d
+                       , 0.6 * scoreLine myPos d (range a) 1 t :: Double
+                       )
+                     | d <- universe
+                     , contents myE `contains` -- Will we still have enough scrap to eat a wall?
+                        (cost (Dir Blast d) <> scrapToEatWall) 
+                     ]
+
+          shot t g = take 1 $ fmap fst
                    $ sortOn (negate . snd)
                    $ nudgeScores g 0.3
                    $ filter ((> 0.2) . snd) -- Don't shoot at a tiny whiff of opponent
-                   $ [ (d, scoreLine myPos d (range a) t :: Double)
-                     | d <- universe
-                     ]
+                   $ shots t ++ blasts t
           
           potentialShots = shot 0 gen1 ++ shot 1 gen2
-          shots = join $ take 1 $ drop 1 -- Drop the empty prefix
+          shoot = join $ take 1 $ drop 1 -- Drop the empty prefix
             $ filter (\s -> maybeToMonoid (contents myE `without` fold (cost <$> s))
-                `contains` singloot Hearts 2) -- Assumes walls have 2HP, shoot costs 1S
+                `contains` scrapToEatWall)
             $ inits $ take (fst $ uniformR (1,2) gen3) potentialShots
           
           adj d = getSquare (step d myPos) w
 
-          contAfterShoot = maybeToMonoid $ contents myE `without` fold (cost <$> shots)
+          contAfterShoot = maybeToMonoid $ contents myE `without` fold (cost <$> shoot)
 
           grabs = take (fst $ uniformR (0,2) gen7) -- 2/3 chance to grab when we can
                 $ take 1 $ fmap fst
@@ -692,11 +711,17 @@ class (FromJSON w, ToJSON w) => World w where
                                 . flip mtimesDefault (cost (Dir Shoot d))
                                 . health) (adj d)
                       ]
-          eatWall = if (contAfterShoot `contains` stimes (3::Int) (cost $ Dir Shoot N)
-                       && not (contAfterShoot `contains` singloot Hearts 8)
-                       ) ||
-                       not (contAfterShoot `contains` singloot Hearts 3) -- Assumes shoot costs 1S
-                    then join $ take 1 $ fmap fst $ sortOn snd $ nudgeScores gen4 0.001 eatWalls
+          potentialEatWall = join $ take 1
+                           $ fmap fst
+                           $ sortOn snd
+                           $ nudgeScores gen4 0.001 eatWalls
+          eatWall = if (contAfterShoot `contains` lonly Actions -- We'll be able to blast afterwards
+                                                  ( foldMap cost potentialEatWall
+                                                  <> cost (Dir Blast N) )
+                       ) || -- Or we don't have enough scrap to blast yet!
+                       not (contAfterShoot `contains`
+                             (lonly Hearts (cost $ Dir Blast N) <> scrapToEatWall)) 
+                    then potentialEatWall
                     else []
                   
           steps = [ d
@@ -707,20 +732,20 @@ class (FromJSON w, ToJSON w) => World w where
                           grabs ++ take 1 (Dir Move <$> safeShuf' steps (length steps) gen5)
                       | otherwise = eatWall
           
-          initialPlan = shots ++ specialMove
+          initialPlan = shoot ++ specialMove
           intitalCost = fold $ cost <$> initialPlan
 
           eatScrap = [ Undir Recycle
                      | maybeToMonoid (contents myE `without` intitalCost)
                         `contains` ( cost (Undir Recycle)
                                   <> cost (Undir RepairMe)
-                                  <> singloot Hearts 2 )
+                                  <> cost (Dir Blast N) )
                      ]
           
           repairMe = [ Undir RepairMe
                      | maybeToMonoid ( contents myE
                           `without` (intitalCost <> fold (cost <$> eatScrap)) )
-                        `contains` (cost (Undir RepairMe) <> singloot Hearts 2)
+                        `contains` (cost (Undir RepairMe) <> cost (Dir Blast N))
                      ]
 
           randMoves = take 2 $ Dir Move <$> randBEnums gen6
