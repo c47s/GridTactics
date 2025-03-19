@@ -206,6 +206,17 @@ ringAround (cx, cy) r = [(x, cy - r) | x <- [cx-r .. cx+r-1]]
                      ++ [(x, cy + r) | x <- [cx+r,cx+r-1 .. cx-r+1]]
                      ++ [(cx - r, y) | y <- [cy+r,cy+r-1 .. cy-r+1]]
 
+visibleCoords :: (World w) => [(Int, Coords)] -> w -> Set Coords
+visibleCoords views w = Set.fromList $ views >>=
+    ( \(r, c) -> [ wrap $ bimap (+ x) (+ y) c
+                 | x <- [- r .. r] 
+                 , y <- [- r .. r]
+                 ] )
+  where wrap = fromMaybe (wrapCoords w) $ do
+                guard $ origin w == Nothing
+                let ctr = avgPos w $ snd <$> views
+                return $ wrapAround ctr w
+
 
 {- {- {- ACTION -} -} -}
 
@@ -398,18 +409,13 @@ class (FromJSON w, ToJSON w) => World w where
 
   multiViewVia :: (Coords -> w -> Square) -> [(Int, Coords)] -> w -> Grid
   multiViewVia getSquare' views w = let
-      wrap = fromMaybe (wrapCoords w) $ do
-        guard $ origin w == Nothing
-        let ctr = avgPos w $ snd <$> views
-        return $ wrapAround ctr w
-      visibleCoords = Set.fromList $ views >>= (\(r, c) -> concat [[wrap $ bimap (+ x) (+ y) c | x <- [- r .. r]] | y <- [- r .. r]])
-      xs = Set.map (fst :: Coords -> Int) visibleCoords
-      ys = Set.map (snd :: Coords -> Int) visibleCoords
+      xs = Set.map (fst :: Coords -> Int) $ visibleCoords views w
+      ys = Set.map (snd :: Coords -> Int) $ visibleCoords views w
       minX = maybe (minimum xs) fst $ origin w
       minY = maybe (minimum ys) snd $ origin w
       maxX = maybe (maximum xs) fst $ extent w
       maxY = maybe (maximum ys) snd $ extent w
-      getIfVisible c = if c `Set.member` visibleCoords
+      getIfVisible c = if c `Set.member` visibleCoords views w
         then getSquare' c w
         else Just (Entity Nothing (Just "?") 0 mempty)
         -- else Just (Entity Nothing Nothing 0 (singloot Actions x <> singloot Hearts y))
@@ -614,24 +620,37 @@ class (FromJSON w, ToJSON w) => World w where
     w <- get
     modify $ flip updateActor aID \a ->
       let myPos = findActor aID w
-          myE   = fromJust $ getSquare myPos w 
+          myE   = fromJust $ getSquare myPos w
+          teamViews = [ (vision w a', findActor aID' w)
+                      | aID' <- actors w
+                      , let a' = lookupActor aID' w
+                      , owner a' == owner a
+                      ]
+          visible c = c `Set.member` visibleCoords teamViews w
 
           scoreSquare direct t c = fromMaybe 0 do
             e <- getSquare c w
             aID' <- actorID e
             let a' = lookupActor aID' w
+
+                seen  | visible c = 1
+                      | otherwise = 0
+
                 -- t  = position in action queue
                 -- t' = how many actions opponent has taken before now
                 t' = t + if initiative aID' w < initiative aID w then 1 else 0
                 aim   | direct     && t' == 0 = 1
                       | not direct && t' == 0 = 0
                       | otherwise = 1/(5 + 2*t')
+
                 enemy | owner a' /= owner a = 1
                       | otherwise           = -0.7
+
                 weak  | health e <= 0 = 0
                       | health e == 1 = 1
                       | otherwise     = 0.7
-            return $ aim * enemy * weak
+
+            return $ seen * aim * enemy * weak
 
           -- t denotes move number, starting at 0
           scoreTarget t c = scoreSquare True t c
@@ -673,7 +692,7 @@ class (FromJSON w, ToJSON w) => World w where
 
           shot t g = take 1 $ fmap fst
                    $ sortOn (negate . snd)
-                   $ nudgeScores g 0.3
+                   $ nudgeScores g 0.05
                    $ filter ((> 0.2) . snd) -- Don't shoot at a tiny whiff of opponent
                    $ shots t ++ blasts t
           
