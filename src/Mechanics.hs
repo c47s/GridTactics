@@ -640,7 +640,7 @@ class (FromJSON w, ToJSON w) => World w where
                 -- t' = how many actions opponent has taken before now
                 t' = t + if initiative aID' w < initiative aID w then 1 else 0
                 aim   | direct     && t' == 0 = 1
-                      | not direct && t' == 0 = 0
+                      | not direct && (t' == 0 || aID == aID') = 0 -- Can never indirectly hit yourself
                       | otherwise = 1/(5 + 2*t')
 
                 enemy | owner a' /= owner a = 1
