@@ -325,7 +325,7 @@ main = runInputT defaultSettings do
             getInputLineWithInitial "> " ("","")
 
     aIDs <- usingReaderT env getActorIDs
-    actors <- sequence $ usingReaderT env . getActor <$> aIDs
+    actors <- mapM (usingReaderT env . getActor) aIDs
     let myActors = filter ((== username) . toString . owner) actors
 
 

@@ -124,7 +124,7 @@ instance World SeqWorld where
   lookupActor aID = fromJust . IM.lookup (unwrapUID aID) . actors'
 
   updateActor f aID w = w {actors' = IM.adjust (wrapActor . f) (unwrapUID aID) . actors' $ w}
-    where wrapActor = \a -> a {coords = wrapCoords w $ coords a}
+    where wrapActor a = a {coords = wrapCoords w $ coords a}
 
   _addActor a = do
     aID <- gets nextUID
