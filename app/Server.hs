@@ -51,6 +51,7 @@ buildWorld = do
             , health = scatterHealth
             , contents = singloot Actions scatterActions
                       <> singloot Hearts scatterHearts
+            , sealed = False
             })
 
     let w = fillFraction (fillPortion / 100 :: Double) scatterE
@@ -155,6 +156,7 @@ main = runInputT defaultSettings do
                 , health = startHealth
                 , contents = singloot Actions startActions
                           <> singloot Hearts startHearts
+                , sealed = False
                 }
             , actorTemplate = Actor
                 { aname = "TEMPLATE"

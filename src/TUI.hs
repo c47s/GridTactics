@@ -127,11 +127,11 @@ renderSquare :: AppState -> Square -> Widget Name
 renderSquare s sq =
         ( case sq of
             Nothing -> id
-            Just (Entity Nothing (Just "?") _ _) -> withAttr fogAttr
-            Just (Entity Nothing _ _ _) -> if hittable sq
+            Just (Entity Nothing (Just "?") _ _ _) -> withAttr fogAttr
+            Just (Entity Nothing _ _ _ _) -> if hittable sq
                 then withAttr wallAttr
                 else id
-            Just (Entity (Just aID) _ _ _) ->
+            Just (Entity (Just aID) _ _ _ _) ->
                 if aID `elem` actorIDs s
                     then if aID == currActorID s
                         then withAttr selfAttr
@@ -143,12 +143,12 @@ renderSquare s sq =
     where
         sq2Txts :: Square -> [Widget Name]
         sq2Txts Nothing = [txt " ",txt " "]
-        sq2Txts (Just (Entity mID mname hp cont)) =
+        sq2Txts (Just (Entity mID mname hp cont sealed)) =
             [ if hp <= 0 && isJust ((`elemIndex` currOrder s) =<< mID)
                 then txt ""
                 else maybe (txt "") txt mname
             , hBox [showOrder mID, hpTxt]
-            , loot2TxtShort cont
+            , if sealed then list2TxtShort ["?J", "?S"] else loot2TxtShort cont
             ]
             where
                 showOrder :: Maybe UID -> Widget Name
@@ -215,11 +215,12 @@ dir2Text NW = "↖︎"
 act2Text :: Action -> Text
 act2Text (Dir (Throw loot) dir) = dir2Text dir <> " Throw " <> loot2Text loot
 act2Text (Dir (Build n) dir) = dir2Text dir <> " Build ❤︎" <> show n
-act2Text (Dir act dir) = dir2Text dir <> " " <> show act <> " "
+act2Text act@(Dir _ dir) = dir2Text dir <> " " <> basicAct2Text act <> " "
 act2Text actn = basicAct2Text actn
 
 basicAct2Text :: Action -> Text
 basicAct2Text (Dir (Throw _) _) = "Throw"
+basicAct2Text (Dir Grab _) = "Loot"
 basicAct2Text (Dir (Build _) _) = "Build"
 basicAct2Text (Dir act _) = show act
 basicAct2Text (Undir RepairMe)  = "Repair Self"

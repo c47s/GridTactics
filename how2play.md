@@ -2,7 +2,7 @@
 
 ## Installing GridTactics
 
-Just clone the repository, install [stack](https://docs.haskellstack.org/en/stable/), then `cd GridTactics` into thr base directory and use `stack run Server` or `stack run Client` to automatically compile and run the desired program. Might take a while the first time, what with all the dependencies.
+Just clone the repository, install [stack](https://docs.haskellstack.org/en/stable/), then `cd GridTactics` into the base directory and use `stack run Server` or `stack run Client` to automatically compile and run the desired program. Might take a while the first time, what with all the dependencies.
 
 ## Starting a Game
 
@@ -97,9 +97,10 @@ Throwing and shooting have the same range — upgrading range upgrades both.
 
 If thrown items hit a pawn, they'll be added directly to that pawn's inventory. If they hit a wall, they fall on the ground in front of the wall. Finally, if they don't hit anything, they fall on the ground at the edge of your range.
 
-#### Grabbing
+#### Looting
 You can only grab loot from adjacent squares, and only when they have 0 health.
 Stepping on loot grabs it for free, but you can't move onto pawns.
+Dead pawns can only be looted once, yielding half their contents.
 
 #### Repairing
 You can only repair adjacent squares.
@@ -108,8 +109,7 @@ There's no health limit so long as you have the juice & scrap.
 Get next to an ally — you can repair each other more efficiently than you can repair yourselves.
 
 #### Building
-Create a wall with 1 health per scrap spent.
-You can also build on top of loot, but why?
+Create a wall with 1 health per scrap spent, and toss it up to your range, or 1 fewer space per additional health over 1.
 
 #### Scrap Juicing
 You can scrap yourself, taking 1 damage (thereby generating 1 scrap), and gaining 1 juice as well.

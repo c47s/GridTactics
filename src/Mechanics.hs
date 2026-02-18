@@ -11,8 +11,10 @@ module Mechanics
     , res
     , Loot (..)
     , singloot
+    , lonly
     , contains
     , without
+    , multloot
 
     , UID (..)
     , Actor (..)
@@ -64,6 +66,7 @@ data Entity = Entity
   , ename :: Maybe Text
   , health :: Int
   , contents :: Loot
+  , sealed :: Bool
   } deriving stock (Eq, Show, Generic)
 
 type Square = Maybe Entity
@@ -72,7 +75,7 @@ type Grid = [[Square]]
 
 passable :: Square -> Bool
 passable Nothing = True -- An empty square is passable.
-passable (Just e) = (not . isJust $ actorID e) && (health e <= 0)
+passable (Just e) = isNothing (actorID e) && (health e <= 0)
 
 dead :: Square -> Bool
 dead = maybe True $ (<= 0) . health
@@ -91,7 +94,7 @@ instance Semigroup Entity where
       do
         n <- ename e
         n' <- ename e'
-        return $ mixText -- Merging 2 named Entities? This'll be fun!
+        return $ mixText -- Merging 2 named Entities? This'll be fun! (This should never happen?)
           (mkStdGen . sumText -- Make a stdGen based on details of these Entities
             $ show e <> show e')
           n n'
@@ -100,10 +103,11 @@ instance Semigroup Entity where
       ]
     , health = health e + health e'
     , contents = contents e <> contents e'
+    , sealed = sealed e || sealed e'
     }
 
 instance Monoid Entity where
-  mempty = Entity Nothing Nothing 0 mempty
+  mempty = Entity Nothing Nothing 0 mempty False
 
 
 
@@ -119,9 +123,12 @@ newtype Loot = Loot {unLoot :: Map Resource Int}
     deriving newtype (Eq, Ord, Show)
     deriving stock Generic
 
-{- HLINT ignore "Use one" -} -- Spurious hint.
+{- HLINT ignore "Use one" -}
 singloot :: Resource -> Int -> Loot
 singloot = Loot .: Map.singleton 
+
+lonly :: Resource -> Loot -> Loot
+lonly r l = singloot r $ res r l
 
 contains :: Loot -> Loot -> Bool
 contains = isJust .: without
@@ -141,6 +148,9 @@ without = fmap Loot .: mergeA
   (traverseMaybeMissing $ const removeMissingResource)
   (zipWithAMatched $ const minusGeq0)
   `on` unLoot
+
+multloot :: Float -> Loot -> Loot
+multloot n l = Loot $ ceiling . (* n) . fromIntegral <$> unLoot l
 
 instance Semigroup Loot where
   (<>) = Loot .: Map.unionWith (+) `on` unLoot
@@ -227,20 +237,20 @@ instance Enum DirAction where
   fromEnum Blast     = 2
   fromEnum (Throw _) = 3
   fromEnum Grab      = 4
-  fromEnum Repair    = 5
-  fromEnum (Build _) = 6
+  fromEnum (Build _) = 5
+  fromEnum Repair    = 6
   toEnum 0 = Move
   toEnum 1 = Shoot
   toEnum 2 = Blast
   toEnum 3 = Throw mempty
   toEnum 4 = Grab
-  toEnum 5 = Repair
-  toEnum 6 = Build 1
-  toEnum n = toEnum (n `mod` 7)
+  toEnum 5 = Build 1
+  toEnum 6 = Repair
+  toEnum n = toEnum (n `mod` 7) {- HLINT ignore "Use safeToEnum" -}
 
 instance Bounded DirAction where
   minBound = Move
-  maxBound = Build 1
+  maxBound = Repair
 
 data UndirAction
   = RepairMe
@@ -275,6 +285,7 @@ isRanged (Undir _) = False
 isRanged (Dir Shoot _) = True
 isRanged (Dir Blast _) = True
 isRanged (Dir (Throw _) _) = True
+isRanged (Dir (Build _) _) = True
 isRanged (Dir _ _) = False
 
 
@@ -357,7 +368,7 @@ class (FromJSON w, ToJSON w) => World w where
   roundView aIDs w = let
     replay = fromMaybe Empty $ lookup (length (snapshots w) - 1) (snapshots w)
     in
-      if or . fmap (or . \s -> (`Map.notMember` actorStates s) <$> aIDs) $ replay
+      if any (or . \s -> (`Map.notMember` actorStates s) <$> aIDs) replay
         then Empty -- This replay predates our joining the game. Nothing to see.
         else
           ( \s -> let
@@ -375,12 +386,12 @@ class (FromJSON w, ToJSON w) => World w where
                 if maybe 10 health (g !! y !! x) > 0
                   then baseVision <$> (aMap Map.!? aID)
                   else return 0
-              views = catMaybes $
+              views = mapMaybe
                 (\aID -> do
                   r <- vision' aID
                   c <- offset <$> cMap Map.!? aID
                   return (r, c)
-                ) <$> aIDs
+                ) aIDs
             in
               multiViewVia (\c _ -> let c' = wrapCoords w c in g !! snd c' !! fst c') views w
           ) <$> replay
@@ -388,7 +399,7 @@ class (FromJSON w, ToJSON w) => World w where
   multiViewVia :: (Coords -> w -> Square) -> [(Int, Coords)] -> w -> Grid
   multiViewVia getSquare' views w = let
       wrap = fromMaybe (wrapCoords w) $ do
-        guard $ origin w == Nothing
+        guard $ isNothing $ origin w
         let ctr = avgPos w $ snd <$> views
         return $ wrapAround ctr w
       visibleCoords = Set.fromList $ views >>= (\(r, c) -> concat [[wrap $ bimap (+ x) (+ y) c | x <- [- r .. r]] | y <- [- r .. r]])
@@ -400,7 +411,7 @@ class (FromJSON w, ToJSON w) => World w where
       maxY = maybe (maximum ys) snd $ extent w
       getIfVisible c = if c `Set.member` visibleCoords
         then getSquare' c w
-        else Just (Entity Nothing (Just "?") 0 mempty)
+        else Just (Entity Nothing (Just "?") 0 mempty False)
         -- else Just (Entity Nothing Nothing 0 (singloot Actions x <> singloot Hearts y))
     in
       getIfVisible <<$>> ([[(x, y) | x <- [minX .. maxX]] | y <- [minY .. maxY]])
@@ -462,7 +473,7 @@ class (FromJSON w, ToJSON w) => World w where
   project1 = projectN 1
 
   projectN :: Int -> Coords -> Direction -> Int -> ((Square, Square) -> Bool) -> w -> Coords
-  projectN n c d r p w = project (nTimes n (step d) c) d (r - 1) p w
+  projectN n c d r = project (nTimes n (step d) c) d (r - 1)
 
   -- Merge the given Entity's contents with the Square at the given Coords.
   putSquare :: Square -> Coords -> w -> w
@@ -478,12 +489,13 @@ class (FromJSON w, ToJSON w) => World w where
     where
       a' = getSquare a w
 
-  -- Update a shot Square.
+  -- Update a damaged Square.
   hit :: Coords -> w -> w
   hit = updateSquare (fmap \e -> if health e > 0
     then e
       { health = health e - 1
       , contents = contents e <> singloot Hearts 1
+      , sealed = sealed e && health e - 1 > 0
       }
     else e
     )
@@ -492,13 +504,17 @@ class (FromJSON w, ToJSON w) => World w where
   takeLoot c = do
     s <- gets $ getSquare c
     e <- lift s
-    modify $ updateSquare (fmap \e' -> e' {contents = mempty}) c
-    return $ contents e
+    guard $ health e <= 0 && not (sealed e)
+    let takings = if passable s then contents e
+                  else multloot 0.5 $ contents e
+    leavings <- lift $ contents e `without` takings
+    modify $ updateSquare (fmap \e' -> e' {contents = leavings, sealed = sealed e' || not (passable s)}) c
+    return takings
   
   grab :: Coords -> Coords -> w -> Maybe w
   grab grabbee grabber w = do
     let grabbee' = getSquare grabbee w
-    guard $ grabbable grabbee' && dead grabbee'
+    guard $ grabbable grabbee'
     if passable grabbee'
       then return $ move grabbee grabber w
       else flip execStateT w do
@@ -512,14 +528,14 @@ class (FromJSON w, ToJSON w) => World w where
   
   build :: Int -> Coords -> w -> w
   build n = updateSquare
-    \case Nothing -> Just (Entity Nothing Nothing n mempty)
+    \case Nothing -> Just (Entity Nothing Nothing n mempty False)
           Just e  -> if health e > 0 || isJust (actorID e)
-            then Just e
+            then Just $ e {contents = contents e <> singloot Hearts n}
             else Just $ e {health = health e + n}
   
   -- Dump Loot into a Square.
   putLoot :: Loot -> Coords -> w -> w
-  putLoot l = putSquare $ Just (Entity Nothing Nothing 0 l)
+  putLoot l = putSquare $ Just (Entity Nothing Nothing 0 l False)
 
   spendLoot :: Loot -> Coords -> w -> Maybe w
   spendLoot l c w = do
@@ -549,20 +565,24 @@ class (FromJSON w, ToJSON w) => World w where
         Blast -> flip execStateT w do
           let target = project1 c d (range act) (hittable . fst) w
           let splash = ringAround target 1
-          modify $ foldr (.) id (fmap hit $ target:splash)
+          modify $ foldr ((.) . hit) id (target : splash)
           modify $ putLoot (singloot Hearts 2) target
         Throw l -> do
           let throwee = project1 c d (range act) (\(thisSq, nextSq) ->
-                (hittable nextSq && isNothing (join . fmap actorID $ nextSq))
-                || hittable thisSq || isJust (join . fmap actorID $ thisSq)
+                (hittable nextSq && isNothing (actorID =<< nextSq))
+                || hittable thisSq || isJust (actorID =<< thisSq)
                 ) w
+          guard $ isJust (actorID =<< getSquare throwee w) || passable (getSquare throwee w) -- Walls can't catch!
           return $ putLoot l throwee w
         Grab -> do
           let grabbee = step d c
           grab grabbee c w
         Repair -> repair (step d c) w
         Build n -> flip execStateT w do
-          modify $ build n (step d c)
+          let range' = max 1 $ range act - n + 1
+          let target = project1 c d range' (hittable . snd) w
+          guard $ passable (getSquare target w)
+          modify $ build n target
           -- cont' <- lift $ cont `without` singloot Hearts n
           -- modify $ updateSquare (fmap \e -> e {contents = cont'}) c
       Undir RepairMe -> repair c w
@@ -593,7 +613,7 @@ class (FromJSON w, ToJSON w) => World w where
   giveAllLoot :: Loot -> w -> w
   giveAllLoot l w = foldl' (&) w
     . fmap (
-      (\c -> if fromMaybe False . fmap ((> 0) . health) $ getSquare c w
+      (\c -> if maybe False ((> 0) . health) $ getSquare c w
         then putLoot l c
         else id
       )
@@ -604,7 +624,7 @@ class (FromJSON w, ToJSON w) => World w where
   runRound :: w -> w
   runRound = execState do
         order <- reverse <$> gets turnOrder
-        modify (foldr (.) id $ popAct <$> order)
+        modify $ foldr ((.) . popAct) id order
 
   runTurn :: w -> w 
   runTurn = execState do
@@ -614,10 +634,9 @@ class (FromJSON w, ToJSON w) => World w where
     modify $ until queuesEmpty runRound
     modify . giveAllLoot $ singloot Actions 1
     everyone <- gets actors
-    modify $ foldr (.) id $
-      ( \aID w -> updateActor
-          (\a -> a {done = not $ actorAlive w a})
-          aID w
-      )
-      <$> everyone
+    modify $ foldr ((.) . (\ aID w ->
+        updateActor (\ a ->
+            a {done = not $ actorAlive w a}
+        ) aID w
+      )) id everyone
     modify shuffleTurnOrder
