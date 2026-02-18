@@ -203,7 +203,8 @@ defaultKeybinds = Bap.fromList
     , (KChar 's', SelDirAct Shoot)
     , (KChar 'B', SelDirAct Blast)
     , (KChar 't', SelDirAct (Throw mempty))
-    , (KChar 'g', SelDirAct Grab)
+    , (KChar 'l', SelDirAct Grab)
+    , (KChar 'g', Also $ SelDirAct Grab)
     , (KChar 'r', SelDirAct Repair)
     , (KChar 'b', SelDirAct (Build 1))
     , (KChar 'R', SelUndirAct RepairMe)
@@ -324,7 +325,7 @@ main = runInputT defaultSettings do
             getInputLineWithInitial "> " ("","")
 
     aIDs <- usingReaderT env getActorIDs
-    actors <- sequence $ usingReaderT env . getActor <$> aIDs
+    actors <- mapM (usingReaderT env . getActor) aIDs
     let myActors = filter ((== username) . toString . owner) actors
 
 

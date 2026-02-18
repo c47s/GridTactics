@@ -249,5 +249,5 @@ waitUntilTimeOfDay targetDayTime = do
     UTCTime today theTime <- getCurrentTime
     let targetTime = if theTime < targetDayTime
                      then UTCTime today targetDayTime
-                     else UTCTime (succ today) targetDayTime
+                     else UTCTime (succ today) targetDayTime {- HLINT ignore "Use next" -}
     waitUntil targetTime
