@@ -130,9 +130,6 @@ singloot = Loot .: Map.singleton
 lonly :: Resource -> Loot -> Loot
 lonly r l = singloot r $ res r l
 
-lonly :: Resource -> Loot -> Loot
-lonly r l = singloot r $ res r l
-
 contains :: Loot -> Loot -> Bool
 contains = isJust .: without
 
@@ -735,6 +732,7 @@ class (FromJSON w, ToJSON w) => World w where
                   , let l = maybeToMonoid do
                           e <- adj d
                           guard $ health e <= 0
+                          guard $ not $ sealed e
                           guard $ isJust $ actorID e
                           return $ contents e
                   , l /= mempty
