@@ -133,6 +133,9 @@ lonly r l = singloot r $ res r l
 contains :: Loot -> Loot -> Bool
 contains = isJust .: without
 
+lootInSquare :: Loot -> Square -> Bool
+lootInSquare l = maybe False ((`contains` l) . contents)
+
 -- Handle removing a resource type that isn't in the Loot.
 -- Outer Maybe controls whether we scrap the whole Loot,
 -- inner Maybe controls whether we insert the value into the Loot.
@@ -226,9 +229,10 @@ data DirAction
   | Shoot
   | Blast
   | Throw Loot
+  | Build Int
+  | Hurl
   | Grab
   | Repair
-  | Build Int
   deriving stock (Eq, Ord, Show, Generic)
 
 instance Enum DirAction where
@@ -236,16 +240,18 @@ instance Enum DirAction where
   fromEnum Shoot     = 1
   fromEnum Blast     = 2
   fromEnum (Throw _) = 3
-  fromEnum Grab      = 4
-  fromEnum (Build _) = 5
-  fromEnum Repair    = 6
+  fromEnum (Build _) = 4
+  fromEnum Hurl     = 5
+  fromEnum Grab      = 6
+  fromEnum Repair    = 7
   toEnum 0 = Move
   toEnum 1 = Shoot
   toEnum 2 = Blast
   toEnum 3 = Throw mempty
-  toEnum 4 = Grab
-  toEnum 5 = Build 1
-  toEnum 6 = Repair
+  toEnum 4 = Build 1
+  toEnum 5 = Hurl
+  toEnum 6 = Grab
+  toEnum 7 = Repair
   toEnum n = toEnum (n `mod` 7) {- HLINT ignore "Use safeToEnum" -}
 
 instance Bounded DirAction where
@@ -269,6 +275,7 @@ cost (Dir (Throw l) _) = l
 cost (Dir Grab _)      = singloot Actions 1
 cost (Dir Repair _)    = singloot Actions 4 <> singloot Hearts 1
 cost (Dir (Build n) _) = singloot Hearts n
+cost (Dir Hurl _)        = mempty
 cost (Undir RepairMe)  = singloot Actions 6 <> singloot Hearts 1
 cost (Undir ShootMe)   = singloot Actions (-1)
 cost (Undir Recycle)   = singloot Actions (-1) <> singloot Hearts 2
@@ -286,6 +293,7 @@ isRanged (Dir Shoot _) = True
 isRanged (Dir Blast _) = True
 isRanged (Dir (Throw _) _) = True
 isRanged (Dir (Build _) _) = True
+isRanged (Dir Hurl _) = True
 isRanged (Dir _ _) = False
 
 
@@ -500,6 +508,9 @@ class (FromJSON w, ToJSON w) => World w where
     else e
     )
 
+  blast :: Coords -> w -> w
+  blast c = foldr ((.) . hit) id (c : ringAround c 1)
+
   takeLoot :: Coords -> StateT w Maybe Loot
   takeLoot c = do
     s <- gets $ getSquare c
@@ -532,7 +543,48 @@ class (FromJSON w, ToJSON w) => World w where
           Just e  -> if health e > 0 || isJust (actorID e)
             then Just $ e {contents = contents e <> singloot Hearts n}
             else Just $ e {health = health e + n}
+
+  launch :: Entity -> Coords -> Direction -> Int -> w -> w
+  launch ball c d r w =
+      let bA = actor w ball
+          hitPredicate (curSq, nextSq) =
+            let nextA = actorID =<< nextSq
+            in hittable curSq
+              || isJust bA && (  isJust nextA -- Pawns stop short of pawns
+                              || hittable nextSq && (not . lootInSquare (singloot Hearts 1)) nextSq ) -- Pawns stop short of rigid walls
+              || isNothing bA && hittable (Just ball)
+                 && (  isNothing nextA && hittable nextSq -- Walls stop short of walls
+                    || isJust nextA && (not . (`contains` singloot Hearts 1) . contents) ball ) -- Rigid walls stop short of pawns
+          r' = r - max 1 (health ball) + 1
+          target = project c d r' hitPredicate w
+          (pawn, nonPawn) = if isJust bA then (Just ball, tSq) else (tSq, Just ball)
+          tSq = getSquare target w
+          -- Three cases:
+          -- 1. Neither the ball nor the target are pawns -> Merge
+          -- 2. One is a pawn, the other is loot (not hittable) -> Merge
+          -- 3. One is a pawn, the other is a wall (hittable)
+          --       --> Clamp wall health <= 0, then merge
+          --           Well, but the handling of 3 also works on 2.
+          nonPawn' = if hittable nonPawn && (hittable pawn || isJust (actorID =<< pawn)) -- Even dead pawns break walls. Otherwise they'd merge!
+                        then (\e -> e
+                          { health = min 0 $ health e
+                          , contents = contents e <> singloot Hearts (max 0 $ health e)
+                          }) <$> nonPawn
+                        else nonPawn
+          explodeCost = singloot Actions 1 <> singloot Hearts 2
+          explode = execStateT do
+              guard $ lootInSquare explodeCost nonPawn -- Ensure the explode cost comes from the wall
+              modifyM $ spendLoot explodeCost target
+              modify $ blast target
+          effect | hittable pawn && hittable nonPawn
+                   && lootInSquare (singloot Hearts 1) nonPawn
+                    = fromMaybe <$> hit target <*> explode
+                 | otherwise = id
+      in effect . putSquare pawn target . putSquare nonPawn' target . updateSquare (const Nothing) target $ w
   
+  launch1 :: Entity -> Coords -> Direction -> Int -> w -> w
+  launch1 e c d r = launch e (step d c) d (r - 1)
+
   -- Dump Loot into a Square.
   putLoot :: Loot -> Coords -> w -> w
   putLoot l = putSquare $ Just (Entity Nothing Nothing 0 l False)
@@ -564,30 +616,27 @@ class (FromJSON w, ToJSON w) => World w where
           in return $ putLoot (singloot Hearts 1) target $ hit target w
         Blast -> flip execStateT w do
           let target = project1 c d (range act) (hittable . fst) w
-          let splash = ringAround target 1
-          modify $ foldr ((.) . hit) id (target : splash)
+          modify $ blast target
           modify $ putLoot (singloot Hearts 2) target
-        Throw l -> do
-          let throwee = project1 c d (range act) (\(thisSq, nextSq) ->
-                (hittable nextSq && isNothing (actorID =<< nextSq))
-                || hittable thisSq || isJust (actorID =<< thisSq)
-                ) w
-          guard $ isJust (actorID =<< getSquare throwee w) || passable (getSquare throwee w) -- Walls can't catch!
-          return $ putLoot l throwee w
+        Throw l -> let e = Entity Nothing Nothing 0 l False
+                   in return $ launch1 e c d (range act) w
         Grab -> do
           let grabbee = step d c
           grab grabbee c w
         Repair -> repair (step d c) w
-        Build n -> flip execStateT w do
-          let range' = max 1 $ range act - n + 1
-          let target = project1 c d range' (hittable . snd) w
-          guard $ passable (getSquare target w)
-          modify $ build n target
+        Build n -> let e = Entity Nothing Nothing n mempty False
+                   in return $ launch1 e c d (range act) w
           -- cont' <- lift $ cont `without` singloot Hearts n
           -- modify $ updateSquare (fmap \e -> e {contents = cont'}) c
+        Hurl -> flip execStateT w do
+          let target = step d c
+          trgSq <- gets $ getSquare target
+          ball <- lift trgSq
+          modify $ updateSquare (const Nothing) target
+          modify $ launch ball target d (range act - 1)
       Undir RepairMe -> repair c w
       Undir ShootMe -> return $ hit c w
-      Undir Recycle -> return w
+      Undir Recycle -> return w -- It's all in the cost, babey!
       Undir UpRange -> return $ updateActor (\act' -> act' {range = 
         clamp 0 (maxRange w) $ range act' + 1
         }) aID w

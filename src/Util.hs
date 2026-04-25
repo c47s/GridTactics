@@ -59,14 +59,17 @@ untilJust = untilJustAnd (const Nothing)
 check :: msg -> (a -> Bool) -> Check a msg
 check msg p a = toMaybe (not $ p a) msg
 
-nonNeg :: (Num a, Ord a) => a -> Maybe String
+nonNeg :: (Num a, Ord a) => Check a String
 nonNeg = check "Cannot be negative." (>= 0)
 
-gr0 :: (Num a, Ord a) => a -> Maybe String
+gr0 :: (Num a, Ord a) => Check a String
 gr0 = check "Must be greater than zero." (> 0)
 
-nonBlank :: String -> Maybe String
+nonBlank :: Check String String
 nonBlank = check "Please enter something." (not . null . words . fromString)
+
+percent :: (Num a, Ord a) => Check a String
+percent = nonNeg &>- check "Cannot be greater than 100 percent." (<= 100)
 
 -- Compose 2 checks
 (&>-) ::  Check a msg -> Check a msg -> Check a msg

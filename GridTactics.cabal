@@ -12,7 +12,6 @@ maintainer:          c47s <36133719+c47s@users.noreply.github.com>
 copyright:           2022 c47s
 build-type:          Simple
 extra-doc-files:     README.md
-                     CHANGELOG.md
 
 source-repository head
   type:                git

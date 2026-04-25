@@ -16,46 +16,58 @@ buildWorld = do
     outputStrLn ""
     wSize <- untilValidAnd gr0 do
         outputStrLn "Enter world radius:"
-        getInputLineWithInitial "> " ("5","")
+        getInputLineWithInitial "> " ("7","")
 
     outputStrLn ""
-    fillPortion <- untilValidAnd
-        ( nonNeg
-        &>- check "Cannot be greater than 100 percent." (<= 100)
-        ) do
-            outputStrLn "Enter percentage of the map to fill with scatters:"
-            getInputLineWithInitial "> " ("30","")
+    wallPortion <- untilValidAnd percent do
+            outputStrLn "Enter percentage of the map to fill with walls:"
+            getInputLineWithInitial "> " ("25","")
 
     outputStrLn ""
-    scatterHealth <- untilValidAnd nonNeg do
-        outputStrLn "Enter scatter Health:"
+    bombPortion <- untilValidAnd percent do
+            outputStrLn "Enter percentage of the map to fill with bombs:"
+            getInputLineWithInitial "> " ("5","")
+
+    outputStrLn ""
+    wallHealth <- untilValidAnd nonNeg do
+        outputStrLn "Enter wall Health:"
         getInputLineWithInitial "> " ("2","")
 
     outputStrLn ""
-    scatterHearts <- untilValid do
-        outputStrLn "Enter scatter scrap:"
+    wallHearts <- untilValid do
+        outputStrLn "Enter wall scrap:"
         outputStrLn "(Extra scrap placed inside scatters)"
         getInputLineWithInitial "> " ("2","")
 
     outputStrLn ""
-    scatterActions <- untilValid do
-        outputStrLn "Enter scatter juice:"
+    wallActions <- untilValid do
+        outputStrLn "Enter wall juice:"
         outputStrLn "(Juice placed inside scatters)"
         getInputLineWithInitial "> " ("0","")
 
     gen <- getStdGen
 
-    let scatterE = (Entity
+    let wall = (Entity
             { actorID = Nothing
             , ename = Nothing
-            , health = scatterHealth
-            , contents = singloot Actions scatterActions
-                      <> singloot Hearts scatterHearts
+            , health = wallHealth
+            , contents = singloot Actions wallActions
+                      <> singloot Hearts wallHearts
             , sealed = False
             })
 
-    let w = fillFraction (fillPortion / 100 :: Double) scatterE
-            $ mkWorld gen wSize
+    let bomb = (Entity
+            { actorID = Nothing
+            , ename = Nothing
+            , health = 4 -- Break even from shooting
+            , contents = singloot Actions 1 -- explodeCost
+                      <> singloot Hearts 2
+            , sealed = False
+            })
+
+    let w = fillFraction (bombPortion / 100 :: Double) bomb
+          . fillFraction (wallPortion / 100 :: Double) wall
+          $ mkWorld gen wSize
     return w
 
 

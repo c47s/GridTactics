@@ -85,22 +85,22 @@ You can never move onto pawns.
 If you move onto a square, you pick up its contents.
 
 #### Shooting
-One damage, at range. The timeless classic.
+One damage, at range. Embeds 1 scrap in the target, or drops it at the end of your range.
 
 ### Blasting
 Same as shooting, but damages each square adjacent to the target, too.
 Otherwise, if nothing is in the way, bursts at the end of your range.
-Drops some scrap at the impact point.
+Drops 2 scrap at the impact point.
 
 #### Throwing
 Throwing and shooting have the same range — upgrading range upgrades both.
 
-If thrown items hit a pawn, they'll be added directly to that pawn's inventory. If they hit a wall, they fall on the ground in front of the wall. Finally, if they don't hit anything, they fall on the ground at the edge of your range.
+If thrown items hit something solid, they are added to that entity's inventory, i.e. embedded in walls and caught by living pawns. If they don't hit anything, they fall on the ground at the end of your range.
 
 #### Looting
 You can only grab loot from adjacent squares, and only when they have 0 health.
 Stepping on loot grabs it for free, but you can't move onto pawns.
-Dead pawns can only be looted once, yielding half their contents.
+Dead pawns can only be looted once, yielding half their contents, rounded up.
 
 #### Repairing
 You can only repair adjacent squares.
@@ -109,7 +109,14 @@ There's no health limit so long as you have the juice & scrap.
 Get next to an ally — you can repair each other more efficiently than you can repair yourselves.
 
 #### Building
-Create a wall with 1 health per scrap spent, and toss it up to your range, or 1 fewer space per additional health over 1.
+Create a wall with 1 health per scrap spent, and immediately hurl it — see below:
+
+#### Hurling
+Fling an adjacent entity (pawn, loot, or wall) up to your range for projectiles up to health 1, or 1 fewer space per additional health.
+
+Walls containing scrap will shatter on collision with a pawn:
+If the wall contains 1 juice and 2 scrap, it will explode, dealing one damage to the pawn and each adjacent square, and consuming the 1J 2S.
+Otherwise, the pawn will simply take one damage.
 
 #### Scrap Juicing
 You can scrap yourself, taking 1 damage (thereby generating 1 scrap), and gaining 1 juice as well.
