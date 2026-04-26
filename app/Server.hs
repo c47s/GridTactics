@@ -19,54 +19,39 @@ buildWorld = do
         getInputLineWithInitial "> " ("7","")
 
     outputStrLn ""
-    wallPortion <- untilValidAnd percent do
-            outputStrLn "Enter percentage of the map to fill with walls:"
-            getInputLineWithInitial "> " ("25","")
+    scatterPortion <- untilValidAnd percent do
+            outputStrLn "Enter percentage of the map to fill with scatters:"
+            getInputLineWithInitial "> " ("30","")
 
     outputStrLn ""
-    bombPortion <- untilValidAnd percent do
-            outputStrLn "Enter percentage of the map to fill with bombs:"
-            getInputLineWithInitial "> " ("5","")
-
-    outputStrLn ""
-    wallHealth <- untilValidAnd nonNeg do
-        outputStrLn "Enter wall Health:"
+    scatterHealth <- untilValidAnd nonNeg do
+        outputStrLn "Enter scatter Health:"
         getInputLineWithInitial "> " ("2","")
 
     outputStrLn ""
-    wallHearts <- untilValid do
-        outputStrLn "Enter wall scrap:"
+    scatterScrap <- untilValid do
+        outputStrLn "Enter scatter scrap:"
         outputStrLn "(Extra scrap placed inside scatters)"
         getInputLineWithInitial "> " ("2","")
 
     outputStrLn ""
-    wallActions <- untilValid do
-        outputStrLn "Enter wall juice:"
+    scatterActions <- untilValid do
+        outputStrLn "Enter scatter juice:"
         outputStrLn "(Juice placed inside scatters)"
         getInputLineWithInitial "> " ("0","")
 
     gen <- getStdGen
 
-    let wall = (Entity
+    let scatterE = (Entity
             { actorID = Nothing
             , ename = Nothing
-            , health = wallHealth
-            , contents = singloot Actions wallActions
-                      <> singloot Hearts wallHearts
+            , health = scatterHealth
+            , contents = singloot Juice scatterActions
+                      <> singloot Scrap scatterScrap
             , sealed = False
             })
 
-    let bomb = (Entity
-            { actorID = Nothing
-            , ename = Nothing
-            , health = 4 -- Break even from shooting
-            , contents = singloot Actions 1 -- explodeCost
-                      <> singloot Hearts 2
-            , sealed = False
-            })
-
-    let w = fillFraction (bombPortion / 100 :: Double) bomb
-          . fillFraction (wallPortion / 100 :: Double) wall
+    let w = fillFraction (scatterPortion / 100 :: Double) scatterE
           $ mkWorld gen wSize
     return w
 
@@ -116,7 +101,7 @@ main = runInputT defaultSettings do
         getInputLineWithInitial "> " ("2","")
 
     outputStrLn ""
-    startHearts <- untilValidAnd nonNeg do
+    startScrap <- untilValidAnd nonNeg do
         outputStrLn "Enter starting scrap:"
         getInputLineWithInitial "> " ("2","")
 
@@ -166,8 +151,8 @@ main = runInputT defaultSettings do
                 { actorID = Nothing
                 , ename = Nothing
                 , health = startHealth
-                , contents = singloot Actions startActions
-                          <> singloot Hearts startHearts
+                , contents = singloot Juice startActions
+                          <> singloot Scrap startScrap
                 , sealed = False
                 }
             , actorTemplate = Actor

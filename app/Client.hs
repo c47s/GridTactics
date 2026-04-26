@@ -142,7 +142,7 @@ doUIAction PlayerR s = continue' if True --changingPlayers s
 doUIAction Yes s = continue' $ if changingPlayers s
     then s
         { currAction = Undir Wait
-        , currResource = Actions
+        , currResource = Juice
         , changingPlayers = False
         }
     else s
@@ -200,11 +200,12 @@ activateMouseMode = do
 defaultKeybinds :: Bap.Bimap Key UIAction
 defaultKeybinds = Bap.fromList
     [ (KChar 'm', SelDirAct Move)
+    , (KChar 'j', SelDirAct Jump)
     , (KChar 's', SelDirAct Shoot)
     , (KChar 'B', SelDirAct Blast)
     , (KChar 't', SelDirAct (Throw mempty))
     , (KChar 'l', SelDirAct Grab)
-    , (KChar 'g', Also $ SelDirAct Grab)
+    --, (KChar 'g', Also $ SelDirAct Grab)
     , (KChar 'r', SelDirAct Repair)
     , (KChar 'b', SelDirAct (Build 1))
     , (KChar 'h', SelDirAct Hurl)
@@ -358,7 +359,7 @@ main = runInputT defaultSettings do
             , keybinds = defaultKeybinds
             , actorIDs = fromList initActorIDs
             , currAction = Undir Wait
-            , currResource = Actions
+            , currResource = Juice
             , changingPlayers = True
             , viewingMap = False
             , viewingReplay = False

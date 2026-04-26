@@ -80,10 +80,10 @@ percent = nonNeg &>- check "Cannot be greater than 100 percent." (<= 100)
 -- State
 
 modifyM :: (Monad m) => (s -> m s) -> StateT s m ()
-modifyM f = do
-    s <- get
-    s' <- lift $ f s
-    put s'
+modifyM = put <=< getsM
+
+getsM :: (Monad m) => (s -> m a) -> StateT s m a
+getsM = lift <=< gets
 
 maybeState :: StateT s Maybe a -> State s (Maybe a)
 maybeState t = state \s -> let

@@ -163,19 +163,11 @@ renderSquare s sq =
                     then padLeft Max . txt $ "❤︎" <> show hp
                     else txt " "
 
-resType2Text :: Resource -> Text
-resType2Text Actions = "Juice"
-resType2Text Hearts  = "Scrap"
-
-resType2TextShort :: Resource -> Text
-resType2TextShort Actions = "J"
-resType2TextShort Hearts  = "S"
-
 res2Text :: Resource -> Int -> Text
-res2Text r n = show n <> " " <> resType2Text r
+res2Text r n = show n <> " " <> show r
 
 res2TextShort :: Resource -> Int -> Text
-res2TextShort r n = show n <> resType2TextShort r
+res2TextShort r n = show n <> T.take 1 (show r)
 
 list2Text :: [Text] -> Text
 list2Text = maybe "Nothing" nempty2Text . nonEmpty
@@ -295,12 +287,12 @@ draw s = let
     selectedAct = vBox . fmap hCenter $
         [ txt ("Selected Action: " <> act2Text (currAction s))
         , txt ("Cost: " <> loot2Text (cost $ currAction s))
-        , if isRanged $ currAction s
+        , if isRanged (currAction s) || currAction s == Undir UpRange
             then txt ("Range: " <> show (range me))
             else emptyWidget
         , case currAction s of
             Dir (Throw _) _ ->
-                txt ("Selected Resource: " <> resType2Text (currResource s))
+                txt ("Selected Resource: " <> show (currResource s))
             _ -> emptyWidget
         ]
     

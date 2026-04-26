@@ -36,7 +36,6 @@ module Mechanics
     , World (..)
     ) where
 
-import           Brick.Util (clamp)
 import           Control.Monad.Morph
 import           Control.Zipper
 import           Data.Aeson (FromJSON, ToJSON)
@@ -113,7 +112,7 @@ instance Monoid Entity where
 
 {- {- {- LOOT -} -} -}
 
-data Resource = Actions | Hearts
+data Resource = Juice | Scrap
     deriving stock (Eq, Ord, Enum, Bounded, Show, Generic)
 
 res :: Resource -> Loot -> Int
@@ -132,9 +131,6 @@ lonly r l = singloot r $ res r l
 
 contains :: Loot -> Loot -> Bool
 contains = isJust .: without
-
-lootInSquare :: Loot -> Square -> Bool
-lootInSquare l = maybe False ((`contains` l) . contents)
 
 -- Handle removing a resource type that isn't in the Loot.
 -- Outer Maybe controls whether we scrap the whole Loot,
@@ -226,6 +222,7 @@ data Action
 
 data DirAction
   = Move
+  | Jump
   | Shoot
   | Blast
   | Throw Loot
@@ -237,21 +234,23 @@ data DirAction
 
 instance Enum DirAction where
   fromEnum Move      = 0
-  fromEnum Shoot     = 1
-  fromEnum Blast     = 2
-  fromEnum (Throw _) = 3
-  fromEnum (Build _) = 4
-  fromEnum Hurl     = 5
-  fromEnum Grab      = 6
-  fromEnum Repair    = 7
+  fromEnum Jump      = 1
+  fromEnum Shoot     = 2
+  fromEnum Blast     = 3
+  fromEnum (Throw _) = 4
+  fromEnum (Build _) = 5
+  fromEnum Hurl      = 6
+  fromEnum Grab      = 7
+  fromEnum Repair    = 8
   toEnum 0 = Move
-  toEnum 1 = Shoot
-  toEnum 2 = Blast
-  toEnum 3 = Throw mempty
-  toEnum 4 = Build 1
-  toEnum 5 = Hurl
-  toEnum 6 = Grab
-  toEnum 7 = Repair
+  toEnum 1 = Jump
+  toEnum 2 = Shoot
+  toEnum 3 = Blast
+  toEnum 4 = Throw mempty
+  toEnum 5 = Build 1
+  toEnum 6 = Hurl
+  toEnum 7 = Grab
+  toEnum 8 = Repair
   toEnum n = toEnum (n `mod` 7) {- HLINT ignore "Use safeToEnum" -}
 
 instance Bounded DirAction where
@@ -269,18 +268,19 @@ data UndirAction
 
 cost :: Action -> Loot
 cost (Dir Move _)      = mempty
-cost (Dir Shoot _)     = singloot Actions 1 <> singloot Hearts 1
-cost (Dir Blast _)     = singloot Actions 2 <> singloot Hearts 4
+cost (Dir Jump _)        = singloot Juice 2
+cost (Dir Shoot _)     = singloot Juice 1 <> singloot Scrap 1
+cost (Dir Blast _)     = singloot Juice 2 <> singloot Scrap 4
 cost (Dir (Throw l) _) = l
-cost (Dir Grab _)      = singloot Actions 1
-cost (Dir Repair _)    = singloot Actions 4 <> singloot Hearts 1
-cost (Dir (Build n) _) = singloot Hearts n
-cost (Dir Hurl _)        = mempty
-cost (Undir RepairMe)  = singloot Actions 6 <> singloot Hearts 1
-cost (Undir ShootMe)   = singloot Actions (-1)
-cost (Undir Recycle)   = singloot Actions (-1) <> singloot Hearts 2
-cost (Undir UpRange)   = singloot Actions 2
-cost (Undir UpVision)  = singloot Actions 4
+cost (Dir Grab _)      = singloot Juice 1
+cost (Dir Repair _)    = singloot Juice 4 <> singloot Scrap 1
+cost (Dir (Build n) _) = singloot Scrap n
+cost (Dir Hurl _)      = singloot Juice 1
+cost (Undir RepairMe)  = singloot Juice 6 <> singloot Scrap 1
+cost (Undir ShootMe)   = singloot Juice (-1)
+cost (Undir Recycle)   = singloot Juice (-1) <> singloot Scrap 2
+cost (Undir UpRange)   = singloot Juice 2
+cost (Undir UpVision)  = singloot Juice 4
 cost (Undir Wait)      = mempty
 
 getDir :: Action -> Maybe Direction
@@ -288,7 +288,9 @@ getDir (Dir _ d) = Just d
 getDir _ = Nothing
 
 isRanged :: Action -> Bool
+isRanged (Undir UpRange) = True
 isRanged (Undir _) = False
+isRanged (Dir Jump _)  = True
 isRanged (Dir Shoot _) = True
 isRanged (Dir Blast _) = True
 isRanged (Dir (Throw _) _) = True
@@ -420,7 +422,7 @@ class (FromJSON w, ToJSON w) => World w where
       getIfVisible c = if c `Set.member` visibleCoords
         then getSquare' c w
         else Just (Entity Nothing (Just "?") 0 mempty False)
-        -- else Just (Entity Nothing Nothing 0 (singloot Actions x <> singloot Hearts y))
+        -- else Just (Entity Nothing Nothing 0 (singloot Juice x <> singloot Scrap y))
     in
       getIfVisible <<$>> ([[(x, y) | x <- [minX .. maxX]] | y <- [minY .. maxY]])
 
@@ -469,19 +471,30 @@ class (FromJSON w, ToJSON w) => World w where
 
   -- Search in a line from the Coords in the given direction until we find what we're looking for or we reach the given max range.
   -- The predicate takes the tuple (this Square, the next Square). This allows stopping before OR upon the desired Square.
-  project :: Coords -> Direction -> Int -> ((Square, Square) -> Bool) -> w -> Coords
+  -- Return a tuple of the square and the number of spaces traveled.
+  project :: Coords -> Direction -> Int -> ((Square, Square) -> Bool) -> w -> (Coords, Int)
   project c d r p w
-    | r == 0 || p (getSquare c w, getSquare nextSq w) = c
-    | otherwise = project nextSq d (r - 1) p w
+    | r == 0 || p (getSquare c w, getSquare nextSq w) = (c, 0)
+    | otherwise = second (+1) $ project nextSq d (r - 1) p w
     where
       nextSq = step d c
+
+  project_ :: Coords -> Direction -> Int -> ((Square, Square) -> Bool) -> w -> Coords
+  project_ c d r p w = fst $ project c d r p w
   
   -- Start the search 1 square out. (To avoid hitting yourself!)
   project1 :: Coords -> Direction -> Int -> ((Square, Square) -> Bool) -> w -> Coords
   project1 = projectN 1
 
   projectN :: Int -> Coords -> Direction -> Int -> ((Square, Square) -> Bool) -> w -> Coords
-  projectN n c d r = project (nTimes n (step d) c) d (r - 1)
+  projectN n c d r = project_ (nTimes n (step d) c) d (r - 1)
+
+  -- Empty out a square and return its contents
+  takeSquare :: Coords -> State w Square
+  takeSquare c = do
+    sq <- gets $ getSquare c
+    modify $ updateSquare (const Nothing) c
+    return sq
 
   -- Merge the given Entity's contents with the Square at the given Coords.
   putSquare :: Square -> Coords -> w -> w
@@ -493,16 +506,16 @@ class (FromJSON w, ToJSON w) => World w where
   -- Empty out one Square, and add its contents to those of another.
   -- If both have Actors, the second one's Actor is DESTROYED! bad bad bad
   move :: Coords -> Coords -> w -> w
-  move a b w = w & putSquare a' b . updateSquare (const Nothing) a
-    where
-      a' = getSquare a w
+  move a b = execState do
+    sq <- takeSquare a
+    modify $ putSquare sq b
 
   -- Update a damaged Square.
   hit :: Coords -> w -> w
   hit = updateSquare (fmap \e -> if health e > 0
     then e
       { health = health e - 1
-      , contents = contents e <> singloot Hearts 1
+      , contents = contents e <> singloot Scrap 1
       , sealed = sealed e && health e - 1 > 0
       }
     else e
@@ -536,54 +549,27 @@ class (FromJSON w, ToJSON w) => World w where
   repair c w = do
       e <- getSquare c w
       return $ updateSquare (const . Just $ e {health = health e + 1}) c w
-  
-  build :: Int -> Coords -> w -> w
-  build n = updateSquare
-    \case Nothing -> Just (Entity Nothing Nothing n mempty False)
-          Just e  -> if health e > 0 || isJust (actorID e)
-            then Just $ e {contents = contents e <> singloot Hearts n}
-            else Just $ e {health = health e + n}
+
+  hurl :: Coords -> Direction -> Int -> w -> Maybe w
+  hurl c d r = execStateT do
+    trgSq <- gets $ getSquare c
+    ball <- lift trgSq
+    modify $ updateSquare (const Nothing) c
+    modify $ launch ball c d r
 
   launch :: Entity -> Coords -> Direction -> Int -> w -> w
   launch ball c d r w =
-      let bA = actor w ball
-          hitPredicate (curSq, nextSq) =
-            let nextA = actorID =<< nextSq
-            in hittable curSq
-              || isJust bA && (  isJust nextA -- Pawns stop short of pawns
-                              || hittable nextSq && (not . lootInSquare (singloot Hearts 1)) nextSq ) -- Pawns stop short of rigid walls
-              || isNothing bA && hittable (Just ball)
-                 && (  isNothing nextA && hittable nextSq -- Walls stop short of walls
-                    || isJust nextA && (not . (`contains` singloot Hearts 1) . contents) ball ) -- Rigid walls stop short of pawns
-          r' = r - max 1 (health ball) + 1
-          target = project c d r' hitPredicate w
-          (pawn, nonPawn) = if isJust bA then (Just ball, tSq) else (tSq, Just ball)
-          tSq = getSquare target w
-          -- Three cases:
-          -- 1. Neither the ball nor the target are pawns -> Merge
-          -- 2. One is a pawn, the other is loot (not hittable) -> Merge
-          -- 3. One is a pawn, the other is a wall (hittable)
-          --       --> Clamp wall health <= 0, then merge
-          --           Well, but the handling of 3 also works on 2.
-          nonPawn' = if hittable nonPawn && (hittable pawn || isJust (actorID =<< pawn)) -- Even dead pawns break walls. Otherwise they'd merge!
-                        then (\e -> e
-                          { health = min 0 $ health e
-                          , contents = contents e <> singloot Hearts (max 0 $ health e)
-                          }) <$> nonPawn
-                        else nonPawn
-          explodeCost = singloot Actions 1 <> singloot Hearts 2
-          explode = execStateT do
-              guard $ lootInSquare explodeCost nonPawn -- Ensure the explode cost comes from the wall
-              modifyM $ spendLoot explodeCost target
-              modify $ blast target
-          effect | hittable pawn && hittable nonPawn
-                   && lootInSquare (singloot Hearts 1) nonPawn
-                    = fromMaybe <$> hit target <*> explode
-                 | otherwise = id
-      in effect . putSquare pawn target . putSquare nonPawn' target . updateSquare (const Nothing) target $ w
-  
-  launch1 :: Entity -> Coords -> Direction -> Int -> w -> w
-  launch1 e c d r = launch e (step d c) d (r - 1)
+      let hitPredicate (curSq, nextSq)
+              = hittable curSq
+             || (not . passable) (Just ball) && (not . passable) nextSq
+          r' = max 0 $ r - health ball
+          (target, dist) = project c d r' hitPredicate w
+          r'' = r' - dist
+          clack = fromMaybe <$> id <*> execStateT do guard (r'' > 0)
+                                                     nextSq <- gets $ getSquare $ step d target
+                                                     guard $ (not . passable) nextSq
+                                                     modifyM $ hurl (step d target) d r''
+      in clack $ putSquare (Just ball) target w
 
   -- Dump Loot into a Square.
   putLoot :: Loot -> Coords -> w -> w
@@ -600,50 +586,40 @@ class (FromJSON w, ToJSON w) => World w where
   spendFor = spendLoot . cost
   
   doAct :: Action -> Coords -> w -> Maybe w
-  doAct a c w = do
-    let s = getSquare c w
-    me <- s
-    let _cont = contents me
-    aID <- actorID me
-    let act = lookupActor aID w
-    case a of
-      Dir a' d -> case a' of
-        Move -> do
-          let destination = step d c
-          guard . passable . getSquare destination $ w
-          return . move c destination $ w
-        Shoot -> let target = project1 c d (range act) (hittable . fst) w
-          in return $ putLoot (singloot Hearts 1) target $ hit target w
-        Blast -> flip execStateT w do
-          let target = project1 c d (range act) (hittable . fst) w
+  doAct act c = execStateT do
+    myE <- getsM $ getSquare c
+    aID <- lift $ actorID myE
+    r <- gets $ range . lookupActor aID
+    case act of
+      Dir dirAct d -> case dirAct of
+        Move -> modifyM $ hurl c d (health myE + 1)
+        Jump -> modifyM $ hurl c d (r + 1)
+        Shoot -> do target <- gets $ project1 c d r (hittable . fst)
+                    modify $ putLoot (singloot Scrap 1) target . hit target
+        Blast -> do
+          target <- gets $ project1 c d r (hittable . fst)
           modify $ blast target
-          modify $ putLoot (singloot Hearts 2) target
-        Throw l -> let e = Entity Nothing Nothing 0 l False
-                   in return $ launch1 e c d (range act) w
+          modify $ putLoot (singloot Scrap 2) target
+        Throw l -> let lootball = Entity Nothing Nothing 0 l False
+                   in modify $ launch lootball c d r
         Grab -> do
           let grabbee = step d c
-          grab grabbee c w
-        Repair -> repair (step d c) w
-        Build n -> let e = Entity Nothing Nothing n mempty False
-                   in return $ launch1 e c d (range act) w
-          -- cont' <- lift $ cont `without` singloot Hearts n
+          modifyM $ grab grabbee c
+        Repair -> modifyM $ repair (step d c)
+        Build n -> do let wall = Just $ Entity Nothing Nothing n mempty False
+                      space <- gets $ getSquare $ step d c
+                      guard $ passable space
+                      modify $ putSquare wall (step d c)
+                      modifyM $ hurl (step d c) d r
+          -- cont' <- lift $ cont `without` singloot Scrap n
           -- modify $ updateSquare (fmap \e -> e {contents = cont'}) c
-        Hurl -> flip execStateT w do
-          let target = step d c
-          trgSq <- gets $ getSquare target
-          ball <- lift trgSq
-          modify $ updateSquare (const Nothing) target
-          modify $ launch ball target d (range act - 1)
-      Undir RepairMe -> repair c w
-      Undir ShootMe -> return $ hit c w
-      Undir Recycle -> return w -- It's all in the cost, babey!
-      Undir UpRange -> return $ updateActor (\act' -> act' {range = 
-        clamp 0 (maxRange w) $ range act' + 1
-        }) aID w
-      Undir UpVision -> return $ updateActor (\act' -> act' {baseVision = 
-        baseVision act' + 1 -- clamp 0 (maxVision w) $ vision act' + 1
-        }) aID w
-      Undir Wait -> return w
+        Hurl -> modifyM $ hurl (step d c) d r
+      Undir RepairMe -> modifyM $ repair c
+      Undir ShootMe -> modify $ hit c
+      Undir Recycle -> pass
+      Undir UpRange -> modify $ updateActor (\a -> a {range = range a + 1}) aID
+      Undir UpVision -> modify $ updateActor (\a -> a {baseVision = baseVision a + 1}) aID
+      Undir Wait -> pass
 
   -- Pop an Action from the Actor's queue, and do it.
   popAct :: UID -> w -> w
@@ -681,7 +657,7 @@ class (FromJSON w, ToJSON w) => World w where
     modify newSnapTurn
     modify takeSnapshot
     modify $ until queuesEmpty runRound
-    modify . giveAllLoot $ singloot Actions 1
+    modify . giveAllLoot $ singloot Juice 1
     everyone <- gets actors
     modify $ foldr ((.) . (\ aID w ->
         updateActor (\ a ->

@@ -112,11 +112,14 @@ Get next to an ally — you can repair each other more efficiently than you can 
 Create a wall with 1 health per scrap spent, and immediately hurl it — see below:
 
 #### Hurling
-Fling an adjacent entity (pawn, loot, or wall) up to your range for projectiles up to health 1, or 1 fewer space per additional health.
+Fling an adjacent entity (pawn, loot, or wall) up to your range minus the projectile's health.
+For instance, if a pawn with range 3 hurls a 1-health wall, the wall will travel 2 spaces, landing 3 spaces away from the pawn.
 
-Walls containing scrap will shatter on collision with a pawn:
-If the wall contains 1 juice and 2 scrap, it will explode, dealing one damage to the pawn and each adjacent square, and consuming the 1J 2S.
-Otherwise, the pawn will simply take one damage.
+If the projectile collides with another entity, that entity will be hurled up to the remaining distance the projectile would have gone, minus the new projectile's health.
+For instance, if a pawn with range 3 hurls a 1-health wall with another 1-health wall behind it, the first wall will try to move 2 spaces, but will instead immediately hit the second wall, which will move 1 space.
+
+#### Jumping
+Hurl yourself at +1 range. Pawns start with 2 health and 3 range — in this state, they can jump 2 spaces.
 
 #### Scrap Juicing
 You can scrap yourself, taking 1 damage (thereby generating 1 scrap), and gaining 1 juice as well.
