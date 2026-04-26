@@ -3,6 +3,7 @@ resolver: lts-23.9
 
 extra-deps:
   - servant-flatten-0.2@sha256:276896f7c5cdec5b8f8493f6205fded0cc602d050b58fdb09a6d7c85c3bb0837,1234
+  - NumInstances-1.4@sha256:d498d51e0fb23822706ca5e24944d014fdc1fd55bcd57f075f9797316eec0187,1385
 
 nix:
   packages: [zlib]

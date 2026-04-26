@@ -30,7 +30,7 @@ import           System.Random hiding (next)
 inApp :: AppState -> ReaderT ClientEnv (EventM Name AppState) a -> EventM Name AppState a
 inApp s r = runReaderT r (clientEnv s)
 
-newtype GTEvent = Tick Int -- ^ Number of seconds since app start
+newtype GTEvent = Tick Int -- ^ Time since app start
 
 -- | The GridTactics Brick app
 gtApp :: App AppState GTEvent Name
@@ -51,6 +51,7 @@ gtApp = App
         , (hostileAttr, bg V.red)
         , (wallAttr, bg V.black)
         , (fogAttr, V.white `Brick.on` V.white)
+        , (lineNumAttr, fg V.yellow)
         ]
     }
 
@@ -118,16 +119,12 @@ doUIAction Decrement s = put case currAction s of
     Dir (Build n) d -> s {currAction = Dir (Build $ max 0 $ n - 1) d}
     _ -> s
 doUIAction RotL s = put if viewingReplay s
-    then s { replayIndex = max 0 (replayIndex s - 1)
-           , replayTick = replayTick s + 10
-           }
+    then s { replayIndex = max 0 (replayIndex s - 1) }
     else case currAction s of
         Dir a d -> s {currAction = Dir a (prev d)}
         _ -> s
 doUIAction RotR s = put if viewingReplay s
-    then s { replayIndex = min (length (currReplay s) - 1) (replayIndex s + 1)
-           , replayTick = replayTick s + 10
-           }
+    then s { replayIndex = min (length (currReplay s) - 1) (replayIndex s + 1) }
     else case currAction s of
         Dir a d -> s {currAction = Dir a (next d)}
         _ -> s
@@ -154,7 +151,6 @@ doUIAction No s = put $ if changingPlayers s
 doUIAction ViewMap s = continue' $ s {viewingMap = not . viewingMap $ s}
 doUIAction ViewReplay s = continue' $ s { viewingReplay = not . viewingReplay $ s
                                         , replayIndex = -1
-                                        , replayTick = 0
                                         }
 doUIAction (SwitchTo aID) s = continue' $ s {actorIDs = rotateTo aID $ actorIDs s}
 doUIAction ToggleDone s = toggleDone (currActorID s) s
@@ -177,13 +173,6 @@ handleEvent :: AppState -> BrickEvent Name GTEvent -> EventM Name AppState ()
 handleEvent s (VtyEvent (EvKey key _modifiers)) = maybe put doUIAction (Bap.lookup key (keybinds s)) s
 handleEvent s (MouseDown (Btn uiAct) _ _ _) = doUIAction uiAct s
 handleEvent s (AppEvent (Tick n))
-    | viewingReplay s && n >= replayTick s
-    = if replayIndex s + 1 == length (currReplay s)
-        then put s {viewingReplay = False, replayIndex = 0}
-        else put s
-            { replayIndex = replayIndex s + 1
-            , replayTick = n + round (30 * 0.99 ^ (replayIndex s + 1) :: Double)
-            }
     | not (longGame s) && n `mod` 500 == 0 = continue' s
     | otherwise = continueWithoutRedraw
 handleEvent s _otherEvent = put s
@@ -205,14 +194,13 @@ defaultKeybinds = Bap.fromList
     , (KChar 'B', SelDirAct Blast)
     , (KChar 't', SelDirAct (Throw mempty))
     , (KChar 'l', SelDirAct Grab)
-    --, (KChar 'g', Also $ SelDirAct Grab)
     , (KChar 'r', SelDirAct Repair)
     , (KChar 'b', SelDirAct (Build 1))
     , (KChar 'h', SelDirAct Hurl)
     , (KChar 'R', SelUndirAct RepairMe)
     , (KChar 'S', SelUndirAct ShootMe)
     , (KChar 'e', SelUndirAct Recycle)
-    , (KChar 'G', SelUndirAct UpRange)
+    , (KChar 'g', SelUndirAct UpRange)
     , (KChar 'v', SelUndirAct UpVision)
     , (KChar 'w', SelUndirAct Wait)
     , (KChar '+', Increment)
@@ -364,7 +352,6 @@ main = runInputT defaultSettings do
             , viewingMap = False
             , viewingReplay = False
             , replayIndex = 0
-            , replayTick = 0
             , currActor = error "currActor not yet initialized"
             , nextActor = error "nextActor not yet initialized"
             , currView = error "currView not yet initialized"
@@ -374,7 +361,7 @@ main = runInputT defaultSettings do
             , currNumDone = error "currNumDone not yet initialized"
             , currNames = error "currNames not yet initialized"
             , currOrder = error "currOrder not yet initialized"
-            , longGame = isJust $ runDailyAt config
+            , serverConfig = config
             }
 
 

@@ -166,6 +166,7 @@ main = runInputT defaultSettings do
                 , done = False
                 }
             , pawnsPerClient = pawnsPerClient'
+            , dimensions = wrapCoords w (-1, -1) + (1, 1)
             , runDailyAt = runDailyAt'
             }
 

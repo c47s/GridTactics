@@ -32,8 +32,10 @@ common common-options
                      , haskeline
                      , http-api-data
                      , http-client
+                     , lens
                      , mmorph
                      , mtl
+                     , NumInstances
                      , optparse-applicative
                      , random
                      , random-shuffle

@@ -3,28 +3,35 @@ module TUI
     , AppState(..)
     , currActorID
     , nextActorID
+    , longGame
     , selfAttr
     , friendlyAttr
     , hostileAttr
     , wallAttr
     , fogAttr
+    , ghostAttr
+    , lineNumAttr
     , UIAction(..)
     , Name(..)
     , Resource(..)
-    , singloot
     ) where
 
+import           API (Config(..))
 import           Brick.AttrMap
 import           Brick.Types
 import           Brick.Widgets.Border
 import           Brick.Widgets.Center
 import           Brick.Widgets.Core
 import           Brick.Widgets.Table
+import           Control.Arrow ((***))
+import           Control.Lens.Traversal (element)
+import           Control.Lens.Operators ((%~))
 import qualified Data.Bimap as Bap
 import           Data.Bimap (Bimap)
-import           Data.List (elemIndex)
+import           Data.List (elemIndex, (!!))
 import qualified Data.Map.Strict as Map
 import           Data.Maybe (fromJust)
+import           Data.NumInstances.Tuple ()
 import qualified Data.Sequence as Seq
 import qualified Data.Text as T
 import           Graphics.Vty
@@ -44,7 +51,6 @@ data AppState = AppState
     , viewingMap :: Bool
     , viewingReplay :: Bool
     , replayIndex :: Int
-    , replayTick :: Int
     , keybinds :: Bimap Key UIAction
 
     -- Cache
@@ -57,7 +63,7 @@ data AppState = AppState
     , currNumDone :: Int
     , currNames :: [Text]
     , currOrder :: [UID]
-    , longGame :: Bool -- One round a day?
+    , serverConfig :: Config
     }
 
 currActorID :: AppState -> UID
@@ -65,6 +71,9 @@ currActorID = fromJust . (Seq.!? 0) . actorIDs
 
 nextActorID :: AppState -> UID
 nextActorID = fromJust . (Seq.!? 0) . rotate . actorIDs
+
+longGame :: AppState -> Bool
+longGame = isJust . runDailyAt . serverConfig
 
 
 selfAttr :: AttrName
@@ -81,6 +90,12 @@ wallAttr = attrName "wallAttr"
 
 fogAttr :: AttrName
 fogAttr = attrName "fogAttr"
+
+ghostAttr :: AttrName
+ghostAttr = attrName "ghostAttr"
+
+lineNumAttr :: AttrName
+lineNumAttr = attrName "lineNumAttr"
 
 
 data UIAction
@@ -120,27 +135,33 @@ dirActBtn = Btn . SelDirAct
 
 
 
-grid2Table :: AppState -> [[Square]] -> Table Name
+
+type AnnotatedSquare = (Square, Bool)
+
+grid2Table :: AppState -> [[AnnotatedSquare]] -> Table Name
 grid2Table s = table . reverse . fmap (fmap $ renderSquare s)
 
-renderSquare :: AppState -> Square -> Widget Name
-renderSquare s sq =
+renderSquare :: AppState -> AnnotatedSquare -> Widget Name
+renderSquare s (sq, ghost) =
         ( case sq of
             Nothing -> id
-            Just (Entity Nothing (Just "?") _ _ _) -> withAttr fogAttr
+            Just (Entity Nothing (Just "?") _ _ _) -> withDefAttr fogAttr
             Just (Entity Nothing _ _ _ _) -> if hittable sq
-                then withAttr wallAttr
+                then withDefAttr wallAttr
                 else id
             Just (Entity (Just aID) _ _ _ _) ->
                 if aID `elem` actorIDs s
                     then if aID == currActorID s
-                        then withAttr selfAttr
+                        then withDefAttr selfAttr
                         else clickable (Btn $ SwitchTo aID)
-                            . withAttr friendlyAttr
-                    else withAttr hostileAttr
+                            . withDefAttr friendlyAttr
+                    else withDefAttr hostileAttr
         )
+        . (if ghost && Just (currActorID s) /= (actorID =<< sq) then modifyDefAttr ghostify else id)
         . vLimit 2 . hLimit 5 . center . vBox . sq2Txts $ sq
     where
+        ghostify :: Attr -> Attr
+        ghostify (Attr style _fc bc url) = Attr style bc (SetTo brightBlack) url
         sq2Txts :: Square -> [Widget Name]
         sq2Txts Nothing = [txt " ",txt " "]
         sq2Txts (Just (Entity mID mname hp cont sealed)) =
@@ -245,10 +266,18 @@ draw s = let
             <> " pawns are done"
         ]
 
+    limit100pct = hLimitPercent 100 . vLimitPercent 100
+
+    numActs = length $ queue me
+    lnumWidth = T.length $ show numActs
+
+    queueLine :: Int -> Action -> [Widget n]
+    queueLine i a = [withAttr lineNumAttr $ txt (show i <> " "), limit100pct $ padRight (Pad (lnumWidth+1)) $ txtWrap $ act2Text a]
+
     queueBox = borderWithLabel (txt "Action Plan")
-        (vBox (defaultElem
-            (txtWrap "Nothing Planned (Yet!)")
-        . fmap (txtWrap . act2Text) . reverse . toList . queue $ me))
+        (renderTable . rowBorders False . columnBorders False . surroundingBorder False . table
+            . defaultElem [limit100pct $ txtWrap "Nothing Planned (Yet!)"]
+        . fmap (uncurry queueLine) . zip [1..] . reverse . toList . queue $ me)
 
     dispDActCost actn = clickable (dirActBtn actn) . txt $ loot2TextShort (cost (Dir actn N))
     dispUActCost actn = clickable (undirActBtn actn) . txt $
@@ -298,11 +327,11 @@ draw s = let
     
     lSidebar = vBox
         [ actMenu
-        , case currAction s of
+        , if viewingReplay s then emptyWidget else case currAction s of
             Dir _ _ -> txtWrap $ dispBind RotL <> " and " <> dispBind RotR
                 <> " rotate direction"
             _ -> emptyWidget
-        , case currAction s of
+        , if viewingReplay s then emptyWidget else case currAction s of
             Dir (Throw _) _ -> vBox
                 [ txtWrap $ dispBind Decrement <> " and " <> dispBind Increment
                     <> " adjust resource amount"
@@ -310,7 +339,7 @@ draw s = let
                     <> " select resource type"
                 ]
             Dir (Build _) _ -> txtWrap $ dispBind Decrement <> " and " <> dispBind Increment
-                <> " adjust build health"
+                <> " adjust wall health"
             _ -> emptyWidget
         ]
 
@@ -325,16 +354,32 @@ draw s = let
         , txtWrap $ dispBind SubmAction <> ": Plan selected action"
         , txtWrap $ dispBind DelAction <> ": Delete last action"
         ]
-    
+
+    ghostOffset :: Coords
+    ghostOffset = foldr (\case Undir _ -> id
+                               Dir Move d -> step d
+                               Dir Jump d -> (!! (range me - maybe 0 health mySq + 1)) . iterate (step d)
+                               Dir _ _ -> id
+                        ) (0,0) (queue me)
+    myPos :: Grid -> Coords
+    myPos = first (fromMaybe (-1)) . fromMaybe (Nothing, -1) . find (isJust . fst) . flip zip [0..] . fmap (elemIndex mySq)
+    insertGhost :: Grid -> [[(Square, Bool)]]
+    insertGhost g = let (w, h) = dimensions (serverConfig s)
+                        ghostPos :: Coords
+                        ghostPos = (`mod` w) *** (`mod` h) $ myPos g + ghostOffset
+                        g' = (, False) <<$>> g
+                    in g' & element (snd ghostPos) . element (fst ghostPos) %~ second (const True)
+
     worldTable = hCenter (txt "Press M to view map")
-             <=> hCenter (renderTable . grid2Table s $ currView s)
+             <=> hCenter (renderTable . grid2Table s . insertGhost $ currView s)
 
     mapTable = hCenter (txt "Press M to exit map")
-           <=> hCenter (renderTable . grid2Table s $ currMap s)
+           <=> hCenter (txt ("myPos: " <> show (myPos $ currMap s) <> "ghOffs: " <> show ghostOffset))
+           <=> hCenter (renderTable . grid2Table s . insertGhost $ currMap s)
 
     replayTable = fromMaybe (hCenter $ vCenter $ txt ";3") $ do
         grid <- Seq.lookup (max 0 $ replayIndex s) $ currReplay s
-        return $ renderTable $ grid2Table s grid
+        return $ renderTable $ grid2Table s ((, False) <<$>> grid)
 
     centerContent = vBox . fmap hCenter $
         if viewingReplay s

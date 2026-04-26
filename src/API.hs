@@ -116,6 +116,7 @@ data Config = Config
     { pawnTemplate :: Entity
     , actorTemplate :: Actor
     , pawnsPerClient :: Int
+    , dimensions :: Coords
     , runDailyAt :: Maybe DiffTime
     }
     deriving stock (Eq, Generic)
