@@ -600,8 +600,8 @@ class (FromJSON w, ToJSON w) => World w where
           target <- gets $ project1 c d r (hittable . fst)
           modify $ blast target
           modify $ putLoot (singloot Scrap 2) target
-        Throw l -> let lootball = Entity Nothing Nothing 0 l False
-                   in modify $ launch lootball c d r
+        Throw l -> do modify $ putLoot l (step d c)
+                      modifyM $ hurl (step d c) d (r - 1)
         Grab -> do
           let grabbee = step d c
           modifyM $ grab grabbee c
