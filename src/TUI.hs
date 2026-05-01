@@ -9,7 +9,6 @@ module TUI
     , hostileAttr
     , wallAttr
     , fogAttr
-    , ghostAttr
     , lineNumAttr
     , UIAction(..)
     , Name(..)
@@ -28,7 +27,7 @@ import           Control.Lens.Traversal (element)
 import           Control.Lens.Operators ((%~))
 import qualified Data.Bimap as Bap
 import           Data.Bimap (Bimap)
-import           Data.List (elemIndex, (!!))
+import           Data.List (elemIndex, findIndex, (!!))
 import qualified Data.Map.Strict as Map
 import           Data.Maybe (fromJust)
 import           Data.NumInstances.Tuple ()
@@ -58,7 +57,7 @@ data AppState = AppState
     , nextActor :: Actor
     , currView :: Grid
     , currMap :: Grid
-    , currReplay :: Seq Grid
+    , currReplay :: Seq Snapshot
     , currDone :: Bool
     , currNumDone :: Int
     , currNames :: [Text]
@@ -72,28 +71,23 @@ currActorID = fromJust . (Seq.!? 0) . actorIDs
 nextActorID :: AppState -> UID
 nextActorID = fromJust . (Seq.!? 0) . rotate . actorIDs
 
+currSnapshot :: AppState -> Maybe Snapshot
+currSnapshot s = Seq.lookup (max 0 $ replayIndex s) $ currReplay s
+
 longGame :: AppState -> Bool
 longGame = isJust . runDailyAt . serverConfig
 
 
 selfAttr :: AttrName
 selfAttr = attrName "selfAttr"
-
 friendlyAttr :: AttrName
 friendlyAttr = attrName "friendlyAttr"
-
 hostileAttr :: AttrName
 hostileAttr = attrName "hostileAttr"
-
 wallAttr :: AttrName
 wallAttr = attrName "wallAttr"
-
 fogAttr :: AttrName
 fogAttr = attrName "fogAttr"
-
-ghostAttr :: AttrName
-ghostAttr = attrName "ghostAttr"
-
 lineNumAttr :: AttrName
 lineNumAttr = attrName "lineNumAttr"
 
@@ -133,16 +127,19 @@ undirActBtn = Btn . SelUndirAct
 dirActBtn :: DirAction -> Name
 dirActBtn = Btn . SelDirAct
 
+highlight :: Color -> Attr -> Attr
+highlight c (Attr style _fc bc url) = Attr style bc (SetTo c) url
 
 
 
-type AnnotatedSquare = (Square, Bool)
+
+type AnnotatedSquare = (Square, Maybe Color)
 
 grid2Table :: AppState -> [[AnnotatedSquare]] -> Table Name
 grid2Table s = table . reverse . fmap (fmap $ renderSquare s)
 
 renderSquare :: AppState -> AnnotatedSquare -> Widget Name
-renderSquare s (sq, ghost) =
+renderSquare s (sq, hi) =
         ( case sq of
             Nothing -> id
             Just (Entity Nothing (Just "?") _ _ _) -> withDefAttr fogAttr
@@ -157,11 +154,9 @@ renderSquare s (sq, ghost) =
                             . withDefAttr friendlyAttr
                     else withDefAttr hostileAttr
         )
-        . (if ghost && Just (currActorID s) /= (actorID =<< sq) then modifyDefAttr ghostify else id)
+        . (hi & maybe id (modifyDefAttr . highlight))
         . vLimit 2 . hLimit 5 . center . vBox . sq2Txts $ sq
     where
-        ghostify :: Attr -> Attr
-        ghostify (Attr style _fc bc url) = Attr style bc (SetTo brightBlack) url
         sq2Txts :: Square -> [Widget Name]
         sq2Txts Nothing = [txt " ",txt " "]
         sq2Txts (Just (Entity mID mname hp cont sealed)) =
@@ -355,37 +350,69 @@ draw s = let
         , txtWrap $ dispBind DelAction <> ": Delete last action"
         ]
 
+    sWrapCoords :: Coords -> Coords
+    sWrapCoords = let (w, h) = dimensions (serverConfig s)
+                    in (`mod` w) *** (`mod` h)
+
     ghostOffset :: Coords
     ghostOffset = foldr (\case Undir _ -> id
                                Dir Move d -> step d
                                Dir Jump d -> (!! (range me - maybe 0 health mySq + 1)) . iterate (step d)
                                Dir _ _ -> id
                         ) (0,0) (queue me)
+    sqIsMe :: Square -> Bool
+    sqIsMe = (== Just (currActorID s)) . (actorID =<<)
     myPos :: Grid -> Coords
-    myPos = first (fromMaybe (-1)) . fromMaybe (Nothing, -1) . find (isJust . fst) . flip zip [0..] . fmap (elemIndex mySq)
-    insertGhost :: Grid -> [[(Square, Bool)]]
-    insertGhost g = let (w, h) = dimensions (serverConfig s)
-                        ghostPos :: Coords
-                        ghostPos = (`mod` w) *** (`mod` h) $ myPos g + ghostOffset
-                        g' = (, False) <<$>> g
-                    in g' & element (snd ghostPos) . element (fst ghostPos) %~ second (const True)
+    myPos = first (fromMaybe (-1)) . fromMaybe (Nothing, -1) . find (isJust . fst) . flip zip [0..] . fmap (findIndex sqIsMe)
+    onSquare :: Coords -> (a -> a) -> [[a]] -> [[a]]
+    onSquare c f = element (snd c) . element (fst c) %~ f
+    markSquare :: Color -> Coords -> [[AnnotatedSquare]] -> [[AnnotatedSquare]]
+    markSquare color pos = onSquare pos $ second (const $ Just color)
+    markGhost :: Grid -> [[AnnotatedSquare]]
+    markGhost g = let ghostPos :: Coords
+                      ghostPos = sWrapCoords $ myPos g + ghostOffset
+                      g' = (, Nothing) <<$>> g
+                  in if ghostOffset == (0,0) then g'
+                                             else g' & markSquare brightBlack ghostPos
 
     worldTable = hCenter (txt "Press M to view map")
-             <=> hCenter (renderTable . grid2Table s . insertGhost $ currView s)
+             <=> hCenter (renderTable . grid2Table s . markGhost $ currView s)
 
     mapTable = hCenter (txt "Press M to exit map")
-           <=> hCenter (txt ("myPos: " <> show (myPos $ currMap s) <> "ghOffs: " <> show ghostOffset))
-           <=> hCenter (renderTable . grid2Table s . insertGhost $ currMap s)
+           <=> hCenter (renderTable . grid2Table s . markGhost $ currMap s)
 
-    replayTable = fromMaybe (hCenter $ vCenter $ txt ";3") $ do
-        grid <- Seq.lookup (max 0 $ replayIndex s) $ currReplay s
-        return $ renderTable $ grid2Table s ((, False) <<$>> grid)
+    markAction :: Grid -> [[AnnotatedSquare]]
+    markAction g = let g' = ((,Nothing) <<$>> g) in fromMaybe g' $ do
+                        curSnap <- currSnapshot s
+                        myCoords <- actorCoords curSnap Map.!? currActorID s
+                        (action, actCoords) <- lastAction curSnap
+                        let actPos = actCoords - myCoords + myPos g
+                        let targetSqs = second sWrapCoords <$> case action of
+                                Dir Blast _ -> (yellow,) <$> actPos : ringAround actPos 1
+                                Dir Shoot _ -> [(yellow, actPos)]
+                                _ -> [(brightYellow, actPos)]
+                        let markSquare' (color, pos) = onSquare pos \(sq, _) ->
+                                if (ename =<< sq) == Just "?" then (sq, Nothing)
+                                                              else (sq, Just color)
+                        return $ foldr markSquare' g' targetSqs
+
+    replayGrid = markAction . gridState <$> currSnapshot s
+
+    replayTable = maybe (hCenter $ vCenter $ txt ";3") (renderTable . grid2Table s) replayGrid
+
+    actVisible = maybe False (isJust . find (isJust . find (isJust . snd))) replayGrid
+    replayAction = txt $ fromMaybe "?" do
+        guard actVisible
+        snap <- currSnapshot s
+        act <- lastAction snap
+        return $ act2Text $ fst act
 
     centerContent = vBox . fmap hCenter $
         if viewingReplay s
             then [ txt "Round Replay"
                  , txt $ dispBind RotL <> " and " <> dispBind RotR <> " move through time"
                  , replayTable
+                 , replayAction
                  ]
             else [ txt ("You are " <> aname me)
                  , if viewingMap s

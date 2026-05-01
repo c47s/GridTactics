@@ -92,6 +92,9 @@ maybeState t = state \s -> let
     s' = maybe s snd m
     in (a,s')
 
+tryExecState :: StateT s Maybe a -> s -> s
+tryExecState = (fromMaybe <$> id <*>) . execStateT
+
 -- Run a stateful action in IO, using an IORef to store the state.
 stateToIO :: (MonadIO io) => IORef s -> State s a -> io a
 stateToIO ref s = liftIO do

@@ -67,7 +67,7 @@ instance World SeqWorld where
 
   snapshots = snapshots'
 
-  takeSnapshot w = w { snapshots' = snapshots' w &
+  takeSnapshot mAct w = w { snapshots' = snapshots' w &
       \case
         (snss :|> sns) -> snss :|> (sns :|> snapshot)
         Empty -> fromList [fromList [snapshot]]
@@ -77,7 +77,8 @@ instance World SeqWorld where
         { actorStates = Map.fromList [(aID, lookupActor aID w) | aID <- actors w]
         , actorCoords = Map.fromList [(aID, findActor aID w) | aID <- actors w]
         , actorOrder = fromList . reverse $ turnOrder w
-        , gridState = multiView [(radius w, (radius w + 1, radius w + 1))] w
+        , lastAction = mAct
+        , gridState = toList . fmap toList . worldMap $ w
         }
   
   newSnapTurn w = w { snapshots' = snapshots' w :|> mempty }

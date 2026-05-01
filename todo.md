@@ -1,45 +1,35 @@
 # Todo
 
-*   [x] Add actor-switching to facilitate multiplayer
+*   [ ] Document the replay view in how2play
 
-*   [x] Break UI into smaller functions
+*   [ ] Document vision mechanics in how2play
 
-*   [x] Move general, reusable utility functions into a separate file
+*   [ ] In replay, show actions and their actor if the acting pawn is within view
 
-        Functions like stateToIO and doState
+*   [ ] Improve strategic advice in how2play (or remove entirely :3c)
 
-*   [x] Add multiplayer between terminals on same machine\
-        Simply connect to localhost
+*   [ ] Break how2play into an accessible guide / a complete documentation of mechanics
 
-*   [x] Add multiplayer over network
+*   [ ] Build pipeline for generating pretty .pdf documentation
 
-    *   [x] Make API
+    *   [ ] Rewrite how2play (and in manpage format for `ronn`
 
-    *   [x] Make server
+    *   [ ] Rewrite actions.md as a monospace printable single page ref
 
-    *   [x] Make client
+*   [ ] Make Client error-tolerant
 
-    *   [ ] Make it all work...
+*   [ ] Add (better, custom) logging to server
 
-        *   [x] ... over localhost
+*   [ ] Improve UI
 
-        *   [ ] ... over LAN
+    *   [ ] Use mouse to choose direction
 
-        *   [ ] ... over the internet
+    *   [ ] More clickable buttons?
 
-*   [x] Delete Main\
-        Pull out any useful code first (there probably is none since Client was originally a copy of Main)
+    *   [ ] Make action queue fully editable?
 
-*   [x] Replace `show`-based UI components with specialized widgets
-
-*   [x] Modify client to reject empty names
-
-*   [x] Auto-generate keybind hints in UI and keybinds themselves from a common source
-
-*   [x] Write how2play
-  
-*   [x] Refactor `popAct` so it's NOT in reverse chronological order\
-        and generally NOT convoluted as fuck 
+    *   [ ] Add Forms to UI\
+            Will probably require adding lens stuff
 
 *   [ ] Create documentation
 
@@ -59,47 +49,3 @@
 
     *   [ ] WebInstances
 
-*   [x] Refactor Loot as a Map from Resources to Ints
-
-*   [ ] Make Client error-tolerant
-
-*   [x] Allow Client to manage multiple actors
-
-*   [ ] Add logging to server
-
-*   [ ] Store a history of world states
-
-*   [ ] CHALLENGE: Can I rewrite modifyM using mmorph functions?
-
-*   [ ] Improve UI
-
-    *   [x] List o' Actions and corresponding keybinds on left side of map
-
-        *   [x] Make clickable
-
-    *   [x] Choose any player in player change screen
-
-    *   [ ] Use mouse to choose direction
-
-    *   [x] Clickable buttons for other UI interactions
-
-        *   [ ] ~~Submitting Action~~
-
-        *   [x] Changing Actor
-
-    *   [ ] Make action queue editable
-
-        *   [x] Allow deleting last queue item
-
-    *   [ ] Add Forms to UI\
-            Will probably require adding lens stuff
-
-    *   [ ] Fix crash after some players leave - probably related to snapshot actormaps.
-
-    *   [ ] Enhance snapshots
-
-        *   [ ] Add log
-
-        *   [ ] Display action queue
-
-        *   [ ] Display inventory (only for your own pawns!)

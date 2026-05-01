@@ -24,6 +24,7 @@ module Mechanics
     , Coords
     , Direction (..)
     , step
+    , ringAround
 
     , Action (..)
     , DirAction (..)
@@ -45,7 +46,6 @@ import           Data.Map.Merge.Strict
 import qualified Data.Map.Strict as Map
 import           Data.Sequence (Seq(..), lookup)
 import qualified Data.Set as Set
-import           Data.Tuple.Extra (both)
 import qualified Deque.Lazy as D
 import           Deque.Lazy (Deque)
 import           GHC.Utils.Misc (nTimes)
@@ -177,7 +177,7 @@ data Actor = Actor
   } deriving stock (Eq, Generic)
 
 vision :: (World w) => w -> Actor -> Int
-vision w a = if actorAlive w a
+vision w a = if actorAlive w a || (not . all sealed) (getSquare (coords a) w)
   then baseVision a
   else 0
 
@@ -305,6 +305,7 @@ data Snapshot = Snapshot
   { actorStates :: Map UID Actor
   , actorCoords :: Map UID Coords
   , actorOrder :: Seq UID
+  , lastAction :: Maybe (Action, Coords)
   , gridState :: Grid
   } deriving stock (Generic)
 
@@ -334,7 +335,7 @@ class (FromJSON w, ToJSON w) => World w where
   origin :: w -> Maybe Coords -- ^ (0, 0) - Top left corner
   extent :: w -> Maybe Coords -- ^ Bottom right corner. With origin, draws a bounding box, if applicable.
   snapshots :: w -> Seq (Seq Snapshot) -- ^ Views of the world after each action, divided by turn.
-  takeSnapshot :: w -> w -- ^ Take a snapshot
+  takeSnapshot :: Maybe (Action, Coords) -> w -> w -- ^ Take a snapshot, maybe with the action that just happened and its target.
   newSnapTurn :: w -> w -- ^ Start the next subsequence of snapshots  
 
   register :: Actor -> StateT w Maybe UID -- Register this Actor in the World.
@@ -374,7 +375,7 @@ class (FromJSON w, ToJSON w) => World w where
   multiView :: [(Int, Coords)] -> w -> Grid
   multiView = multiViewVia getSquare
 
-  roundView :: [UID] -> w -> Seq Grid
+  roundView :: [UID] -> w -> Seq Snapshot
   roundView aIDs w = let
     replay = fromMaybe Empty $ lookup (length (snapshots w) - 1) (snapshots w)
     in
@@ -382,28 +383,23 @@ class (FromJSON w, ToJSON w) => World w where
         then Empty -- This replay predates our joining the game. Nothing to see.
         else
           ( \s -> let
-              -- Why do we need to offset wrapAround avgPos-based grids?
-              -- And why only for roundView?
-              -- What gives !
-              offset = if isJust $ origin w
-                then id
-                else both (subtract 1)
               aMap = actorStates s
               cMap = actorCoords s
               g = gridState s
               vision' aID = do
                 (x, y) <- wrapCoords w <$> cMap Map.!? aID
-                if maybe 10 health (g !! y !! x) > 0
+                e <- g !! y !! x
+                if health e > 0 || not (sealed e)
                   then baseVision <$> (aMap Map.!? aID)
                   else return 0
               views = mapMaybe
                 (\aID -> do
                   r <- vision' aID
-                  c <- offset <$> cMap Map.!? aID
+                  c <- cMap Map.!? aID
                   return (r, c)
                 ) aIDs
             in
-              multiViewVia (\c _ -> let c' = wrapCoords w c in g !! snd c' !! fst c') views w
+              s {gridState = multiViewVia (\c _ -> let c' = wrapCoords w c in g !! snd c' !! fst c') views w}
           ) <$> replay
 
   multiViewVia :: (Coords -> w -> Square) -> [(Int, Coords)] -> w -> Grid
@@ -550,26 +546,27 @@ class (FromJSON w, ToJSON w) => World w where
       e <- getSquare c w
       return $ updateSquare (const . Just $ e {health = health e + 1}) c w
 
-  hurl :: Coords -> Direction -> Int -> w -> Maybe w
-  hurl c d r = execStateT do
+  hurl :: Coords -> Direction -> Int -> StateT w Maybe Coords
+  hurl c d r = do
     trgSq <- gets $ getSquare c
     ball <- lift trgSq
     modify $ updateSquare (const Nothing) c
-    modify $ launch ball c d r
+    hoist generalize $ launch ball c d r
 
-  launch :: Entity -> Coords -> Direction -> Int -> w -> w
-  launch ball c d r w =
+  launch :: Entity -> Coords -> Direction -> Int -> State w Coords
+  launch ball c d r = do
       let hitPredicate (curSq, nextSq)
               = hittable curSq
              || (not . passable) (Just ball) && (not . passable) nextSq
-          r' = max 0 $ r - health ball
-          (target, dist) = project c d r' hitPredicate w
-          r'' = r' - dist
-          clack = fromMaybe <$> id <*> execStateT do guard (r'' > 0)
+      let r' = max 0 $ r - health ball
+      (target, dist) <- gets $ project c d r' hitPredicate
+      let r'' = r' - dist
+      let clack = fromMaybe <$> id <*> execStateT do guard (r'' > 0)
                                                      nextSq <- gets $ getSquare $ step d target
                                                      guard $ (not . passable) nextSq
-                                                     modifyM $ hurl (step d target) d r''
-      in clack $ putSquare (Just ball) target w
+                                                     hurl (step d target) d r''
+      modify $ clack . putSquare (Just ball) target
+      return target
 
   -- Dump Loot into a Square.
   putLoot :: Loot -> Coords -> w -> w
@@ -585,55 +582,56 @@ class (FromJSON w, ToJSON w) => World w where
   spendFor :: Action -> Coords -> w -> Maybe w
   spendFor = spendLoot . cost
   
-  doAct :: Action -> Coords -> w -> Maybe w
-  doAct act c = execStateT do
+  doAct :: Action -> Coords -> StateT w Maybe Coords
+  doAct act c = do
     myE <- getsM $ getSquare c
     aID <- lift $ actorID myE
     r <- gets $ range . lookupActor aID
     case act of
       Dir dirAct d -> case dirAct of
-        Move -> modifyM $ hurl c d (health myE + 1)
-        Jump -> modifyM $ hurl c d (r + 1)
+        Move -> hurl c d (health myE + 1) -- >:3c
+        Jump -> hurl c d (r + 1)
         Shoot -> do target <- gets $ project1 c d r (hittable . fst)
                     modify $ putLoot (singloot Scrap 1) target . hit target
+                    return target
         Blast -> do
           target <- gets $ project1 c d r (hittable . fst)
           modify $ blast target
           modify $ putLoot (singloot Scrap 2) target
+          return target
         Throw l -> do modify $ putLoot l (step d c)
-                      modifyM $ hurl (step d c) d (r - 1)
-        Grab -> do
-          let grabbee = step d c
-          modifyM $ grab grabbee c
-        Repair -> modifyM $ repair (step d c)
+                      hurl (step d c) d (r - 1)
+        Grab -> do modifyM $ grab (step d c) c
+                   return (step d c)
+        Repair -> do modifyM $ repair (step d c)
+                     return (step d c)
         Build n -> do let wall = Just $ Entity Nothing Nothing n mempty False
                       space <- gets $ getSquare $ step d c
                       guard $ passable space
                       modify $ putSquare wall (step d c)
-                      modifyM $ hurl (step d c) d r
+                      hurl (step d c) d r
           -- cont' <- lift $ cont `without` singloot Scrap n
           -- modify $ updateSquare (fmap \e -> e {contents = cont'}) c
-        Hurl -> modifyM $ hurl (step d c) d r
-      Undir RepairMe -> modifyM $ repair c
-      Undir ShootMe -> modify $ hit c
-      Undir Recycle -> pass
-      Undir UpRange -> modify $ updateActor (\a -> a {range = range a + 1}) aID
-      Undir UpVision -> modify $ updateActor (\a -> a {baseVision = baseVision a + 1}) aID
-      Undir Wait -> pass
+        Hurl -> hurl (step d c) d r
+      Undir undiract -> c <$ case undiract of
+        RepairMe -> modifyM $ repair c
+        ShootMe -> modify $ hit c
+        Recycle -> pass
+        UpRange -> modify $ updateActor (\a -> a {range = range a + 1}) aID
+        UpVision -> modify $ updateActor (\a -> a {baseVision = baseVision a + 1}) aID
+        Wait -> pass
 
   -- Pop an Action from the Actor's queue, and do it.
   popAct :: UID -> w -> w
-  popAct aID w =
-    updateActor (\a -> a -- Always pop an action (if any) from the queue
-      { queue = maybe (queue a) snd . D.unsnoc . queue $ a }) aID
-    $ fromMaybe w do
-      let findMeIn = findActor aID
-      (actn, _) <- D.unsnoc . queue $ lookupActor aID w -- Maybe get the action
-      ( if Just True == fmap ((> 0) . health) (getSquare (findMeIn w) w)
-            then Just w else Nothing -- Nothing if pawn is missing/dead
-        ) >>= (\w' -> doAct actn (findMeIn w') w')
-          >>= (\w' -> spendFor actn (findMeIn w') w')
-          >>= Just . takeSnapshot
+  popAct aID = updateActor (\a -> a { queue = maybe (queue a) snd . D.unsnoc . queue $ a }) aID -- Always pop from queue
+    . tryExecState do
+        myCoords <- gets $ findActor aID
+        (actn, _) <- getsM $ D.unsnoc . queue . lookupActor aID
+        mySquare <- gets $ getSquare myCoords
+        guard $ Just True == fmap ((> 0) . health) mySquare -- Ensure pawn is not missing/dead
+        modifyM $ spendFor actn myCoords
+        target <- doAct actn myCoords
+        modify $ takeSnapshot (Just (actn, target))
 
   giveAllLoot :: Loot -> w -> w
   giveAllLoot l w = foldl' (&) w
@@ -655,7 +653,7 @@ class (FromJSON w, ToJSON w) => World w where
   runTurn = execState do
     let queuesEmpty w = all (D.null . queue . flip lookupActor w) . actors $ w
     modify newSnapTurn
-    modify takeSnapshot
+    modify $ takeSnapshot Nothing
     modify $ until queuesEmpty runRound
     modify . giveAllLoot $ singloot Juice 1
     everyone <- gets actors

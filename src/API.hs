@@ -99,7 +99,7 @@ type MultiViewAPI = "view"
     :> ReqBody '[JSON] [UID] :> Get '[JSON] Grid
 
 type RoundViewAPI = "replay"
-    :> ReqBody '[JSON] [UID] :> Get '[JSON] (Seq Grid)
+    :> ReqBody '[JSON] [UID] :> Get '[JSON] (Seq Snapshot)
 
 type ConfigAPI = Get '[JSON] Config
 
@@ -256,7 +256,7 @@ newActor :: (MonadIO m) => (Text, Text) -> ReaderT ClientEnv m UID
 newCluster :: MonadIO m => ([Text], Text) -> ReaderT ClientEnv m [UID]
 getNumDone :: (MonadIO m) => ReaderT ClientEnv m Int
 multiLook :: (MonadIO m) => [UID] -> ReaderT ClientEnv m [[Square]]
-roundLook :: (MonadIO m) => [UID] -> ReaderT ClientEnv m (Seq Grid)
+roundLook :: (MonadIO m) => [UID] -> ReaderT ClientEnv m (Seq Snapshot)
 getConfig :: (MonadIO m) => ReaderT ClientEnv m Config
 getActor :<|> quitActor :<|> look :<|> act :<|> delAct :<|> getDone :<|> setDone
     :<|> getActorIDs :<|> getTurnOrder :<|> actorNames :<|> newActor :<|> newCluster
