@@ -73,7 +73,7 @@ main = runInputT defaultSettings do
     outputStrLn ""
     loadBak <- untilValid do
         outputStrLn "Attempt to load autosaved game?"
-        upper <<$>> getInputLineWithInitial "> " ("n","")
+        upper <<$>> getInputLineWithInitial "> " ("y","")
     
     bakExists <- liftIO $ doesFileExist ".gridtac_bak.json"
     when (loadBak == Y) $
@@ -84,9 +84,11 @@ main = runInputT defaultSettings do
         else liftIO $ decodeFileStrict ".gridtac_bak.json"
     when (isJust bakW) $ outputStrLn "Loaded autosave."
 
-    newW <- buildWorld
+    term <- haveTerminalUI
+    _w <- maybe buildWorld return do guard term
+                                     bakW
+    let w = fromMaybe _w bakW
 
-    let w = fromMaybe newW bakW
 
 
     

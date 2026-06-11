@@ -122,7 +122,7 @@ For instance, if a pawn with range 3 hurls a 1-health wall with another 1-health
 Hurl yourself at +1 range. Pawns start with 2 health and 3 range — in this state, they can jump 2 spaces.
 
 #### Scrap Juicing
-You can scrap yourself, taking 1 damage (thereby generating 1 scrap), and gaining 1 juice as well.
+You can scrap yourself, taking 1 damage (thereby generating 1 scrap), and gaining 3 juice as well.
 You can also eat scrap, converting it to juice; 2 scrap yield only 1 juice.
 
 #### Upgrading

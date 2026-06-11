@@ -36,7 +36,7 @@ width :: SeqWorld -> Int
 width w = 2 * radius w + 1
 
 absoluteCoords :: SeqWorld -> Bool
-absoluteCoords w = width w <= 11
+absoluteCoords _w = True
 
 wrap :: Int -> Coords -> Coords
 wrap n = both (`mod` n)

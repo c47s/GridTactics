@@ -6,13 +6,25 @@
 
 *   [ ] In replay, show actions and their actor if the acting pawn is within view
 
+*   [ ] Repurpose obsolete player-switching UI
+    
+    *   [ ] Use switching UI to switch users, not pawns
+    
+    *   [ ] ~~Marking done should mark all pawns done and~~ Some hotkey (ESC?) to exit to the user switching UI
+
+    *   [ ] Add client option to allow hot-seat user switching (optionally specify usernames)
+    
+    *   [ ] Show switching UI only when user switching is available
+    
+    *   [ ] ~~Track done by player, not pawn!~~
+
 *   [ ] Improve strategic advice in how2play (or remove entirely :3c)
 
 *   [ ] Break how2play into an accessible guide / a complete documentation of mechanics
 
 *   [ ] Build pipeline for generating pretty .pdf documentation
 
-    *   [ ] Rewrite how2play (and in manpage format for `ronn`
+    *   [ ] Rewrite how2play in manpage format for `ronn`
 
     *   [ ] Rewrite actions.md as a monospace printable single page ref
 

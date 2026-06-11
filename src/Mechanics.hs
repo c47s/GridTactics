@@ -277,7 +277,7 @@ cost (Dir Repair _)    = singloot Juice 4 <> singloot Scrap 1
 cost (Dir (Build n) _) = singloot Scrap n
 cost (Dir Hurl _)      = singloot Juice 1
 cost (Undir RepairMe)  = singloot Juice 6 <> singloot Scrap 1
-cost (Undir ShootMe)   = singloot Juice (-1)
+cost (Undir ShootMe)   = singloot Juice (-3)
 cost (Undir Recycle)   = singloot Juice (-1) <> singloot Scrap 2
 cost (Undir UpRange)   = singloot Juice 2
 cost (Undir UpVision)  = singloot Juice 4
@@ -405,16 +405,16 @@ class (FromJSON w, ToJSON w) => World w where
   multiViewVia :: (Coords -> w -> Square) -> [(Int, Coords)] -> w -> Grid
   multiViewVia getSquare' views w = let
       wrap = fromMaybe (wrapCoords w) $ do
-        guard $ isNothing $ origin w
+        --guard $ isNothing $ origin w
         let ctr = avgPos w $ snd <$> views
         return $ wrapAround ctr w
       visibleCoords = Set.fromList $ views >>= (\(r, c) -> concat [[wrap $ bimap (+ x) (+ y) c | x <- [- r .. r]] | y <- [- r .. r]])
       xs = Set.map (fst :: Coords -> Int) visibleCoords
       ys = Set.map (snd :: Coords -> Int) visibleCoords
-      minX = maybe (minimum xs) fst $ origin w
-      minY = maybe (minimum ys) snd $ origin w
-      maxX = maybe (maximum xs) fst $ extent w
-      maxY = maybe (maximum ys) snd $ extent w
+      minX = minimum xs
+      minY = minimum ys
+      maxX = maximum xs
+      maxY = maximum ys
       getIfVisible c = if c `Set.member` visibleCoords
         then getSquare' c w
         else Just (Entity Nothing (Just "?") 0 mempty False)
