@@ -28,6 +28,12 @@
 
     *   [ ] Rewrite actions.md as a monospace printable single page ref
 
+*   [ ] Harden API -- give only information that a particular player should have
+
+    *   [ ] Username-based
+    
+    *   [ ] Actual authentication from clients -- maybe password?
+    
 *   [ ] Make Client error-tolerant
 
 *   [ ] Add (better, custom) logging to server

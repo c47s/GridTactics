@@ -105,7 +105,7 @@ library
                        TUI
                        Util
 
-executable Client
+executable gt-client
   import:              common-options
   hs-source-dirs:      app
   main-is:             Client.hs
@@ -115,7 +115,7 @@ executable Client
                        -rtsopts
                        -with-rtsopts=-N
 
-executable Server
+executable gt-server
   import:              common-options
   hs-source-dirs:      app
   main-is:             Server.hs

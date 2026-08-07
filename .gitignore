@@ -60,3 +60,5 @@ result
 .gridtac_bak.json
 *.pem
 *.nix
+deploy.sh
+gt-*

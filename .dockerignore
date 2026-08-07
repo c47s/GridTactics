@@ -1,0 +1,9 @@
+.git
+.github
+.gitignore
+.gridtac_bak.json
+.stack-work
+
+*.md
+*.nix
+*.sh
