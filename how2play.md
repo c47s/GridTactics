@@ -8,8 +8,13 @@ Just clone the repository, install [stack](https://docs.haskellstack.org/en/stab
 
 To create a world, run the Server and choose a port. The default `42069` should be fine. If you don't know what options to choose, just keep hitting enter until you see `Starting Server...`
 
-Next, each player should run the Client on the same machine as the Server. I'd recommend that each person play on a different machine and then log in to the server machine via `ssh` or similar. Accept the default hostname, `localhost`, and enter the same port the Server is using.
+Next, each player should run the Client and point it at the Server. The Server host will have to be mindful of firewalls and such, as with any networked gaming.
 
+## Using the Client
+
+If they weren't already specified in its invocation, the Client will ask you for the address and port of the server, and for your username this game. The latter can be anything you like. 
+
+You'll then be asked to name your pawns. These are your agents in the grid, the entities which will shred themselves, their surroundings, and their counterparts in pursuit of your victory.
 Once you're comfortably situated and no-one can see your screen, press `y` to enter your tactical control panel.
 
 ## What am I looking at?!
@@ -116,7 +121,9 @@ Fling an adjacent entity (pawn, loot, or wall) up to your range minus the projec
 For instance, if a pawn with range 3 hurls a 1-health wall, the wall will travel 2 spaces, landing 3 spaces away from the pawn.
 
 If the projectile collides with another entity, that entity will be hurled up to the remaining distance the projectile would have gone, minus the new projectile's health.
-For instance, if a pawn with range 3 hurls a 1-health wall with another 1-health wall behind it, the first wall will try to move 2 spaces, but will instead immediately hit the second wall, which will move 1 space.
+For instance, if a pawn with range 3 hurls a 1-health wall with another 1-health wall behind it, the first wall will subtract its health from the range (3-1 = 2) and try to move 2 spaces, but will instead immediately hit the second wall, which will similarly subtract (2-1 = 1) and move 1 space.
+
+Pawns actually move by hurling themselves at range 1. This means if you move against a dead pawn, you will remain in place, but the corpse will move one square. This might come in handy sometimes?
 
 #### Jumping
 Hurl yourself at +1 range. Pawns start with 2 health and 3 range — in this state, they can jump 2 spaces.
@@ -141,8 +148,6 @@ Pawns' positions become more uncertain as the round progresses, since they've ha
 
 Aim your shots so that they pass through multiple squares your target could be in. If you have the action points, consider shooting in multiple directions or even moving and then shooting from a slightly different angle. Or just spray blasts. If you have the scrap & juice.
 
-If you try scrapping yourself while in a firefight, your opponent will probably kill you before you use your extra juice. Instead, scrap from cover and toss the spoils to the front line.
-
-Clustering allies is very helpful: you can throw resources to each other, and repair each other if adjacent. Pawns in front can thus recieve support from pawns behind, sustaining them in a firefight.
-
 You can use the combined vision in map view to locate targets with one pawn's view, then line up an unexpected shot from unseen pawns behind it.
+
+The end of this round is the start of next round. Which is to say, make sure your pawns are prepared for next round by the end of this one, whether by way of positioning or distribution of resources. It can be especially helpful to position your squad with mutual throws, so that resources can be tossed around as needed in the first moments of the round.

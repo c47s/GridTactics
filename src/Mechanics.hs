@@ -599,8 +599,13 @@ class (FromJSON w, ToJSON w) => World w where
           modify $ blast target
           modify $ putLoot (singloot Scrap 2) target
           return target
-        Throw l -> do modify $ putLoot l (step d c)
-                      hurl (step d c) d (r - 1)
+        Throw l -> do
+            target <- gets $ project_ c d r (\(thisSq, nextSq) ->
+                  (hittable nextSq && isNothing (actorID =<< nextSq))
+                  || isJust (actorID =<< thisSq)
+                )
+            modify $ putLoot l target
+            return target
         Grab -> do modifyM $ grab (step d c) c
                    return (step d c)
         Repair -> do modifyM $ repair (step d c)
