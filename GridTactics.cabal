@@ -31,7 +31,7 @@ common common-options
                      , ghc
                      , haskeline
                      , http-api-data
-                     , http-client
+                     , http-client-tls
                      , lens
                      , mmorph
                      , mtl
@@ -47,6 +47,7 @@ common common-options
                      , time
                      , unbounded-delays
                      , unix
+                     , url
                      , utility-ht
                      , vty
                      , vty-crossplatform

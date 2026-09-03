@@ -8,7 +8,6 @@ import           Brick.Main
 import           Control.Concurrent (forkIO, threadDelay)
 import qualified Data.Bimap as Bap
 import           Data.List.Extra
--- import qualified Data.Sequence as Seq
 import qualified Data.Text as T
 import           Data.Time.Clock
 import           Data.Time.Format
@@ -16,7 +15,8 @@ import           Data.Time.LocalTime
 import           Graphics.Vty as V hiding (Default)
 import           Graphics.Vty.CrossPlatform
 import           GridTactics hiding (World(..))
-import           Network.HTTP.Client
+import           Network.HTTP.Client.TLS (newTlsManager)
+import           Network.URL (importURL, Host(..), Protocol(..), URL(..), URLType(..))
 import           Options.Applicative
 import           Relude
 import           Relude.Extra.Enum (next, prev)
@@ -229,8 +229,7 @@ defaultKeybinds = Bap.fromList
 
 
 data ClientOpts = ClientOpts
-    { _hostName :: Maybe String
-    , _port :: Maybe Int
+    { _baseUrl :: Maybe String
     , _username :: Maybe String
     }
 
@@ -239,14 +238,8 @@ optParser = ClientOpts
     <$> optional (strOption
         ( long "server"
        <> short 's'
-       <> help "Hostname of the server - domain name or IP address"
-       <> metavar "<hostname>"
-        ))
-    <*> optional (option auto
-        ( long "port"
-       <> short 'p'
-       <> help "Port on which to contact the server"
-       <> metavar "<port>"
+       <> help "Base URL of the server"
+       <> metavar "<URL>"
         ))
     <*> optional (strOption
         ( long "username"
@@ -279,22 +272,21 @@ main = runInputT defaultSettings do
     outputStrLn "Hello!"
     outputStrLn $ "Welcome to the " ++ productName ++ " client."
 
-    hostName <- whenNothing (_hostName opts) do
+    let parseUrl s = case importURL s of
+            Just (URL (Absolute (Host (HTTP ssl) hostName port)) basePath _) ->
+                Just (BaseUrl (if ssl then Https else Http)
+                    hostName
+                    (fromIntegral $ fromMaybe (if ssl then 443 else 80) port)
+                    basePath)
+            _ -> Nothing
+
+    baseUrl <- whenNothing (parseUrl =<< _baseUrl opts) do
         outputStrLn ""
         untilJust do
-            outputStrLn "Enter hostname (IP or domain name):"
-            getInputLineWithInitial "> " ("localhost","")
+            outputStrLn "Enter server URL:"
+            (parseUrl =<<) <$> getInputLineWithInitial "> " ("http://localhost:42069","")
 
-    port <- whenNothing (_port opts) do
-        outputStrLn ""
-        untilValid do
-            outputStrLn "Enter port:"
-            getInputLineWithInitial "> " ("42069","")
-    
-    manager <- liftIO $ newManager defaultManagerSettings
-
-    let baseUrl = BaseUrl Http (fromString hostName) port ""
-
+    manager <- liftIO $ newTlsManager
     let env = mkClientEnv manager baseUrl
 
     outputStrLn ""

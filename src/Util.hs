@@ -45,7 +45,7 @@ untilJustAnd chk getInput = do
     ln <- getInput
     case ln of
         Nothing -> do
-            outputStrLn "Please enter something."
+            outputStrLn "Please enter a valid input."
             untilJustAnd chk getInput
         Just s -> case chk s of
             Just msg -> do
