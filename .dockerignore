@@ -6,4 +6,4 @@
 
 *.md
 *.nix
-*.sh
+deploy.sh

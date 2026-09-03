@@ -30,4 +30,8 @@ COPY --from=builder /out/gt-client /out/gt-server /
 
 FROM debian:trixie-slim@sha256:020c0d20b9880058cbe785a9db107156c3c75c2ac944a6aa7ab59f2add76a7bd
 COPY --from=builder /out/gt-server /usr/local/bin/
-ENTRYPOINT ["/usr/local/bin/gt-server"]
+COPY start-server.sh /usr/local/bin
+RUN chmod +x /usr/local/bin/start-server.sh
+ENV LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
+CMD ["/usr/local/bin/start-server.sh"]
