@@ -600,10 +600,12 @@ class (FromJSON w, ToJSON w) => World w where
           modify $ putLoot (singloot Scrap 2) target
           return target
         Throw l -> do
-            target <- gets $ project_ c d r (\(thisSq, nextSq) ->
+            target <- gets $ project1 c d r (\(thisSq, nextSq) ->
                   (hittable nextSq && isNothing (actorID =<< nextSq))
-                  || isJust (actorID =<< thisSq)
+                    || isJust (actorID =<< thisSq) || hittable thisSq
                 )
+            tSq <- gets $ getSquare target
+            guard $ isJust (actorID =<< tSq) || (not . hittable) tSq
             modify $ putLoot l target
             return target
         Grab -> do modifyM $ grab (step d c) c
