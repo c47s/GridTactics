@@ -508,17 +508,30 @@ class (FromJSON w, ToJSON w) => World w where
 
   -- Update a damaged Square.
   hit :: Coords -> w -> w
-  hit = updateSquare (fmap \e -> if health e > 0
-    then e
-      { health = health e - 1
-      , contents = contents e <> singloot Scrap 1
-      , sealed = sealed e && health e - 1 > 0
-      }
-    else e
-    )
+  hit c = execState do
+    hpBefore <- gets $ maybe 0 health . getSquare c
+    modify $ updateSquare (fmap \e -> if health e > 0
+                                      then e
+                                        { health = health e - 1
+                                        , contents = contents e <> singloot Scrap 1
+                                        , sealed = sealed e && health e - 1 > 0
+                                        }
+                                      else e
+                          ) c
+    hpAfter <- gets $ maybe 0 health . getSquare c
+    if hpBefore > 0 && hpAfter <= 0 then modify $ explode c
+                                    else pass
 
-  blast :: Coords -> w -> w
-  blast c = foldr ((.) . hit) id (c : ringAround c 1)
+  explode :: Coords -> w -> w
+  explode c = tryExecState do
+    juice <- gets $ res Juice . maybe mempty contents . getSquare c
+    let r = juice `div` 2
+    lift $ guard $ r > 0
+    modifyM $ spendLoot (singloot Juice (r * 2)) c -- Should never fail...
+    modify $ blast r c
+
+  blast :: Int -> Coords -> w -> w
+  blast r c = foldr ((.) . hit) id (ringAround c =<< [0..r])
 
   takeLoot :: Coords -> StateT w Maybe Loot
   takeLoot c = do
@@ -596,7 +609,7 @@ class (FromJSON w, ToJSON w) => World w where
                     return target
         Blast -> do
           target <- gets $ project1 c d r (hittable . fst)
-          modify $ blast target
+          modify $ blast 1 target
           modify $ putLoot (singloot Scrap 2) target
           return target
         Throw l -> do
