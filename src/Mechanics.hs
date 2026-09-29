@@ -205,6 +205,16 @@ step SW = stepTwice S W
 stepTwice :: Direction -> Direction -> Coords -> Coords
 stepTwice = (.) `on` step
 
+invert :: Direction -> Direction
+invert N = S
+invert S = N
+invert E = W
+invert W = E
+invert NE = SW
+invert NW = SE
+invert SE = NW
+invert SW = NE
+
 ringAround :: Coords -> Int -> [Coords]
 ringAround (cx, cy) 0 = [(cx, cy)]
 ringAround (cx, cy) r = [(x, cy - r) | x <- [cx-r .. cx+r-1]]
@@ -506,6 +516,15 @@ class (FromJSON w, ToJSON w) => World w where
     sq <- takeSquare a
     modify $ putSquare sq b
 
+  -- Move, but fail if source and dest are both solid
+  rigidMove :: Coords -> Coords -> StateT w Maybe Coords
+  rigidMove a b = do
+    aSq <- gets $ getSquare a
+    bSq <- gets $ getSquare b
+    guard $ passable aSq || passable bSq
+    modify $ move a b
+    return b
+
   -- Update a damaged Square.
   hit :: Coords -> w -> w
   hit = updateSquare (fmap \e -> if health e > 0
@@ -559,13 +578,8 @@ class (FromJSON w, ToJSON w) => World w where
               = hittable curSq
              || (not . passable) (Just ball) && (not . passable) nextSq
       let r' = max 0 $ r - health ball
-      (target, dist) <- gets $ project c d r' hitPredicate
-      let r'' = r' - dist
-      let clack = fromMaybe <$> id <*> execStateT do guard (r'' > 0)
-                                                     nextSq <- gets $ getSquare $ step d target
-                                                     guard $ (not . passable) nextSq
-                                                     hurl (step d target) d r''
-      modify $ clack . putSquare (Just ball) target
+      target <- gets $ project_ c d r' hitPredicate
+      modify $ putSquare (Just ball) target
       return target
 
   -- Dump Loot into a Square.
@@ -589,8 +603,12 @@ class (FromJSON w, ToJSON w) => World w where
     r <- gets $ range . lookupActor aID
     case act of
       Dir dirAct d -> case dirAct of
-        Move -> hurl c d (health myE + 1) -- >:3c
-        Jump -> hurl c d (r + 1)
+        Move -> rigidMove c (step d c)
+        Jump -> do
+          me <- hoist generalize $ takeSquare c
+          target <- gets $ project_ (iterate (step d) c !! r) (invert d) r (passable . fst)
+          modify $ putSquare me target
+          return target
         Shoot -> do target <- gets $ project1 c d r (hittable . fst)
                     modify $ putLoot (singloot Scrap 1) target . hit target
                     return target

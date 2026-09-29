@@ -120,13 +120,9 @@ Create a wall with 1 health per scrap spent, and immediately hurl it — see bel
 Fling an adjacent entity (pawn, loot, or wall) up to your range minus the projectile's health.
 For instance, if a pawn with range 3 hurls a 1-health wall, the wall will travel 2 spaces, landing 3 spaces away from the pawn.
 
-If the projectile collides with another entity, that entity will be hurled up to the remaining distance the projectile would have gone, minus the new projectile's health.
-For instance, if a pawn with range 3 hurls a 1-health wall with another 1-health wall behind it, the first wall will subtract its health from the range (3-1 = 2) and try to move 2 spaces, but will instead immediately hit the second wall, which will similarly subtract (2-1 = 1) and move 1 space.
-
-Pawns actually move by hurling themselves at range 1. This means if you move against a dead pawn, you will remain in place, but the corpse will move one square. This might come in handy sometimes?
-
 #### Jumping
-Hurl yourself at +1 range. Pawns start with 2 health and 3 range — in this state, they can jump 2 spaces.
+Move up to your range in the chosen direction, passing over obstacles.
+Land in the furthest square along the chosen vector which is neither a wall nor a pawn.
 
 #### Scrap Juicing
 You can scrap yourself, taking 1 damage (thereby generating 1 scrap), and gaining 3 juice as well.
