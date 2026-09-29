@@ -199,7 +199,7 @@ defaultKeybinds = Bap.fromList
     , (KChar 'h', SelDirAct Hurl)
     , (KChar 'R', SelUndirAct RepairMe)
     , (KChar 'S', SelUndirAct ShootMe)
-    , (KChar 'e', SelUndirAct Recycle)
+    --, (KChar 'e', SelUndirAct Recycle)
     , (KChar 'g', SelUndirAct UpRange)
     , (KChar 'v', SelUndirAct UpVision)
     , (KChar 'w', SelUndirAct Wait)

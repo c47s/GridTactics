@@ -27,7 +27,7 @@ import           Control.Lens.Traversal (element)
 import           Control.Lens.Operators ((%~))
 import qualified Data.Bimap as Bap
 import           Data.Bimap (Bimap)
-import           Data.List (elemIndex, findIndex, (!!))
+import           Data.List (elemIndex, findIndex, (!!), delete)
 import qualified Data.Map.Strict as Map
 import           Data.Maybe (fromJust)
 import           Data.NumInstances.Tuple ()
@@ -303,7 +303,7 @@ draw s = let
         (renderTable . alignRight 1 . rowBorders False . columnBorders False . surroundingBorder False . table $
             [txt "_: Action", txt "Cost"]
             :  dispDActBinds universe
-            ++ dispUActBinds universe
+            ++ dispUActBinds (delete Recycle universe)
         )
     
     inventory = txt ("Inventory: " <> loot2Text (maybeToMonoid (contents <$> mySq)))
