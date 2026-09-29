@@ -97,11 +97,6 @@ Same as shooting, but damages each square adjacent to the target, too.
 Otherwise, if nothing is in the way, bursts at the end of your range.
 Drops 2 scrap at the impact point.
 
-#### Throwing
-Throwing and shooting have the same range — upgrading range upgrades both.
-
-If thrown items hit something solid, they are added to that entity's inventory, i.e. embedded in walls and caught by living pawns. If they don't hit anything, they fall on the ground at the end of your range.
-
 #### Looting
 You can only grab loot from adjacent squares, and only when they have 0 health.
 Stepping on loot grabs it for free, but you can't move onto pawns.
@@ -128,6 +123,10 @@ Pawns actually move by hurling themselves at range 1. This means if you move aga
 #### Jumping
 Hurl yourself at +1 range. Pawns start with 2 health and 3 range — in this state, they can jump 2 spaces.
 
+#### Throwing
+Place some loot in an adjacent square, then hurl that square at -1 range.
+If the adjacent square is empty, this simply tosses the loot out to your range, embedding in any solid walls or pawns it hits, and otherwise dropping on the ground.
+
 #### Scrap Juicing
 You can scrap yourself, taking 1 damage (thereby generating 1 scrap), and gaining 3 juice as well.
 You can also eat scrap, converting it to juice; 2 scrap yield only 1 juice.
@@ -142,6 +141,8 @@ Waiting is helpful when coorinating with teammates. For instance, if someone els
 
 ### Juice & Scrap
 Each pawn recieves one juice per round, but scrap is only generated when entities (walls, pawns) take damage. The sum of health + scrap in the world can only decrease (via blasting, scrap eating).
+
+When an entity dies with 2 or more juice inside it, it explodes as if blasted, with each additional 2 juice increasing the blast radius by 1.
 
 ### Tactics
 Pawns' positions become more uncertain as the round progresses, since they've had more time to move. You could shoot early to mitigate this, but you may also want to move early in order to dodge other players' volleys.
