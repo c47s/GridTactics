@@ -205,6 +205,16 @@ step SW = stepTwice S W
 stepTwice :: Direction -> Direction -> Coords -> Coords
 stepTwice = (.) `on` step
 
+invert :: Direction -> Direction
+invert N = S
+invert S = N
+invert E = W
+invert W = E
+invert NE = SW
+invert NW = SE
+invert SE = NW
+invert SW = NE
+
 ringAround :: Coords -> Int -> [Coords]
 ringAround (cx, cy) 0 = [(cx, cy)]
 ringAround (cx, cy) r = [(x, cy - r) | x <- [cx-r .. cx+r-1]]
@@ -228,6 +238,7 @@ data DirAction
   | Throw Loot
   | Build Int
   | Hurl
+  | Pull
   | Grab
   | Repair
   deriving stock (Eq, Ord, Show, Generic)
@@ -240,8 +251,9 @@ instance Enum DirAction where
   fromEnum (Throw _) = 4
   fromEnum (Build _) = 5
   fromEnum Hurl      = 6
-  fromEnum Grab      = 7
-  fromEnum Repair    = 8
+  fromEnum Pull      = 7
+  fromEnum Grab      = 8
+  fromEnum Repair    = 9
   toEnum 0 = Move
   toEnum 1 = Jump
   toEnum 2 = Shoot
@@ -249,8 +261,9 @@ instance Enum DirAction where
   toEnum 4 = Throw mempty
   toEnum 5 = Build 1
   toEnum 6 = Hurl
-  toEnum 7 = Grab
-  toEnum 8 = Repair
+  toEnum 7 = Pull
+  toEnum 8 = Grab
+  toEnum 9 = Repair
   toEnum n = toEnum (n `mod` 7) {- HLINT ignore "Use safeToEnum" -}
 
 instance Bounded DirAction where
@@ -268,14 +281,15 @@ data UndirAction
 
 cost :: Action -> Loot
 cost (Dir Move _)      = mempty
-cost (Dir Jump _)        = singloot Juice 2
+cost (Dir Jump _)        = singloot Juice 1
 cost (Dir Shoot _)     = singloot Juice 1 <> singloot Scrap 1
 cost (Dir Blast _)     = singloot Juice 2 <> singloot Scrap 4
 cost (Dir (Throw l) _) = l
 cost (Dir Grab _)      = singloot Juice 1
-cost (Dir Repair _)    = singloot Juice 4 <> singloot Scrap 1
 cost (Dir (Build n) _) = singloot Scrap n
 cost (Dir Hurl _)      = singloot Juice 1
+cost (Dir Pull _)      = mempty
+cost (Dir Repair _)    = singloot Juice 4 <> singloot Scrap 1
 cost (Undir RepairMe)  = singloot Juice 6 <> singloot Scrap 1
 cost (Undir ShootMe)   = singloot Juice (-3)
 cost (Undir Recycle)   = singloot Juice (-1) <> singloot Scrap 2
@@ -627,6 +641,9 @@ class (FromJSON w, ToJSON w) => World w where
           -- cont' <- lift $ cont `without` singloot Scrap n
           -- modify $ updateSquare (fmap \e -> e {contents = cont'}) c
         Hurl -> hurl (step d c) d r
+        Pull -> do tE <- getsM $ getSquare (step d c)
+                   _ <- hurl c (invert d) (health myE + 1)
+                   hurl (step d c) (invert d) (health tE + 1)
       Undir undiract -> c <$ case undiract of
         RepairMe -> modifyM $ repair c
         ShootMe -> modify $ hit c

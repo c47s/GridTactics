@@ -127,6 +127,9 @@ Hurl yourself at +1 range. Pawns start with 2 health and 3 range — in this sta
 Place some loot in an adjacent square, then hurl that square at -1 range.
 If the adjacent square is empty, this simply tosses the loot out to your range, embedding in any solid walls or pawns it hits, and otherwise dropping on the ground.
 
+#### Pulling
+Move yourself and an adjacent targeted entity one space backwards.
+
 #### Scrap Juicing
 You can scrap yourself, taking 1 damage (thereby generating 1 scrap), and gaining 3 juice as well.
 You can also eat scrap, converting it to juice; 2 scrap yield only 1 juice.

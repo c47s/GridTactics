@@ -197,6 +197,7 @@ defaultKeybinds = Bap.fromList
     , (KChar 'r', SelDirAct Repair)
     , (KChar 'b', SelDirAct (Build 1))
     , (KChar 'h', SelDirAct Hurl)
+    , (KChar 'p', SelDirAct Pull)
     , (KChar 'R', SelUndirAct RepairMe)
     , (KChar 'S', SelUndirAct ShootMe)
     , (KChar 'e', SelUndirAct Recycle)
